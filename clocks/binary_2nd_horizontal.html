@@ -27,16 +27,6 @@
     gap:16px;
   }
   .panel{ display:flex; flex-direction:column; gap:12px; }
-  .legend{
-    display:flex; gap:14px;
-    padding-left:34px;
-  }
-  .legend .block{ display:flex; gap:10px; }
-  .legend span{
-    width:18px; text-align:center;
-    font-size:9px; color:var(--dim); letter-spacing:0.05em;
-  }
-  .legend .gap{ width:14px; }
   .grow{
     display:flex; align-items:center; gap:12px;
   }
@@ -47,6 +37,12 @@
   }
   .cols{ display:flex; gap:14px; }
   .col{ display:flex; gap:10px; }
+  .legend-col span{
+    display:flex; align-items:center; justify-content:center;
+    width:18px; height:18px;
+    font-size:9px; color:var(--dim); letter-spacing:0.05em;
+    box-sizing:border-box;
+  }
   .dot{
     width:18px; height:18px;
     border-radius:50%;
@@ -68,11 +64,12 @@
 <body>
 <div id="wrap">
   <div class="panel">
-    <div class="legend">
-      <span style="width:16px"></span>
-      <div class="block"><span>8</span><span>4</span><span>2</span><span>1</span></div>
-      <div class="gap"></div>
-      <div class="block"><span>8</span><span>4</span><span>2</span><span>1</span></div>
+    <div class="grow">
+      <div class="glabel"></div>
+      <div class="cols">
+        <div class="col legend-col"><span>8</span><span>4</span><span>2</span><span>1</span></div>
+        <div class="col legend-col"><span>8</span><span>4</span><span>2</span><span>1</span></div>
+      </div>
     </div>
 
     <div class="grow hour">
@@ -144,5 +141,4 @@
   setInterval(render, 1000);
 </script>
 </body>
-      </html>
-  
+</html>
