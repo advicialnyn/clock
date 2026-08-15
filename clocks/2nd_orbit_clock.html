@@ -22,7 +22,7 @@
     font-size:10px;
     letter-spacing:0.16em;
     text-transform:uppercase;
-    color:#5a4d34;
+    color:#8a795a;
   }
 </style>
 </head>
@@ -39,52 +39,60 @@
 
   const COL = {
     face: '#161922',
-    rim: '#c9a15c',
-    rimDim: '#5a4d34',
-    paper: '#ede8de',
-    teal: '#4c7a73',
+    rim: '#e0b975',
+    rimDim: '#8a795a',
+    paper: '#f5f2ea',
+    teal: '#6fa89f',
   };
 
   // orbit radii and dot sizes for hour / minute / second
   const ORBITS = {
-    hour:   { r: 90,  size: 9, color: COL.rim,   trail: 26 },
-    minute: { r: 150, size: 7, color: COL.paper, trail: 34 },
-    second: { r: 210, size: 5, color: COL.teal,  trail: 46 },
+    hour:   { r: 90,  size: 11, color: COL.rim,   trail: 26 },
+    minute: { r: 150, size: 9,  color: COL.paper, trail: 34 },
+    second: { r: 210, size: 6,  color: COL.teal,  trail: 46 },
   };
 
   function drawFace(){
     ctx.clearRect(0, 0, SIZE, SIZE);
 
+    // solid backing disc so the orbits read clearly against any page background
+    ctx.beginPath();
+    ctx.arc(CX, CY, ORBITS.second.r + 40, 0, Math.PI * 2);
+    ctx.fillStyle = COL.face;
+    ctx.fill();
+
     ctx.save();
     ctx.translate(CX, CY);
 
-    // faint orbit guide rings
+    // orbit guide rings, brighter now
     Object.values(ORBITS).forEach(o => {
       ctx.beginPath();
       ctx.arc(0, 0, o.r, 0, Math.PI * 2);
-      ctx.strokeStyle = COL.rimDim;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = COL.rim;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.9;
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
 
-    // twelve faint hour ticks on the outermost ring, for reference
+    // twelve hour ticks on the outermost ring, for reference
     for (let i = 0; i < 12; i++){
       const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
       const inner = ORBITS.second.r + 14;
-      const outer = ORBITS.second.r + (i % 3 === 0 ? 26 : 20);
+      const outer = ORBITS.second.r + (i % 3 === 0 ? 30 : 22);
       ctx.beginPath();
       ctx.moveTo(inner * Math.cos(a), inner * Math.sin(a));
       ctx.lineTo(outer * Math.cos(a), outer * Math.sin(a));
-      ctx.strokeStyle = COL.rimDim;
-      ctx.lineWidth = i % 3 === 0 ? 2 : 1;
+      ctx.strokeStyle = i % 3 === 0 ? COL.rim : COL.paper;
+      ctx.globalAlpha = i % 3 === 0 ? 1 : 0.7;
+      ctx.lineWidth = i % 3 === 0 ? 3 : 1.5;
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // center pin
     ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
     ctx.fillStyle = COL.rim;
     ctx.fill();
 
@@ -96,7 +104,7 @@
     ctx.save();
     ctx.translate(CX, CY);
 
-    // trailing arc, faded via multiple thin strokes
+    // trailing arc, faded via multiple thin strokes — brighter than before
     const trailRad = (orbit.trail * Math.PI) / 180;
     const steps = 18;
     for (let i = 0; i < steps; i++){
@@ -106,20 +114,22 @@
       ctx.beginPath();
       ctx.arc(0, 0, orbit.r, a0, a1);
       ctx.strokeStyle = orbit.color;
-      ctx.globalAlpha = 0.35 * t;
-      ctx.lineWidth = orbit.size * 0.5;
+      ctx.globalAlpha = 0.15 + 0.55 * t;
+      ctx.lineWidth = orbit.size * 0.7;
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
 
-    // the dot itself
+    // the dot itself, plus a thin dark outline so it stands out on any color behind it
     const x = orbit.r * Math.cos(angle);
     const y = orbit.r * Math.sin(angle);
     ctx.beginPath();
     ctx.arc(x, y, orbit.size, 0, Math.PI * 2);
     ctx.fillStyle = orbit.color;
-    ctx.shadowColor = 'transparent'; // flat, no glow
     ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = COL.face;
+    ctx.stroke();
 
     ctx.restore();
   }
