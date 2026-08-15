@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binary Clock — Horizontal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px;
+  }
+  .panel{ display:flex; flex-direction:column; gap:12px; }
+  .legend{
+    display:flex; gap:14px;
+    padding-left:34px;
+  }
+  .legend .block{ display:flex; gap:10px; }
+  .legend span{
+    width:18px; text-align:center;
+    font-size:9px; color:var(--dim); letter-spacing:0.05em;
+  }
+  .legend .gap{ width:14px; }
+  .grow{
+    display:flex; align-items:center; gap:12px;
+  }
+  .glabel{
+    width:16px;
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .cols{ display:flex; gap:14px; }
+  .col{ display:flex; gap:10px; }
+  .dot{
+    width:18px; height:18px;
+    border-radius:50%;
+    border:1.5px solid var(--rim);
+    background:transparent;
+    box-sizing:border-box;
+  }
+  .dot.lit{ background:var(--rim); }
+  .grow.minute .dot.lit{ background:var(--paper); border-color:var(--paper); }
+  .grow.second .dot.lit{ background:var(--teal); border-color:var(--teal); }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel">
+    <div class="legend">
+      <span style="width:16px"></span>
+      <div class="block"><span>8</span><span>4</span><span>2</span><span>1</span></div>
+      <div class="gap"></div>
+      <div class="block"><span>8</span><span>4</span><span>2</span><span>1</span></div>
+    </div>
+
+    <div class="grow hour">
+      <div class="glabel">H</div>
+      <div class="cols" id="hourCols"></div>
+    </div>
+    <div class="grow minute">
+      <div class="glabel">M</div>
+      <div class="cols" id="minuteCols"></div>
+    </div>
+    <div class="grow second">
+      <div class="glabel">S</div>
+      <div class="cols" id="secondCols"></div>
+    </div>
+  </div>
+  <div id="tag">binary, read left to right</div>
+</div>
+<script>
+  const BITS = [8, 4, 2, 1];
+
+  function buildRow(){
+    const row = document.createElement('div');
+    row.className = 'col';
+    BITS.forEach(bit => {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.dataset.bit = bit;
+      row.appendChild(dot);
+    });
+    return row;
+  }
+
+  function buildGroup(containerId){
+    const container = document.getElementById(containerId);
+    const tens = buildRow();
+    const ones = buildRow();
+    container.appendChild(tens);
+    container.appendChild(ones);
+    return { tens, ones };
+  }
+
+  const hourCols = buildGroup('hourCols');
+  const minuteCols = buildGroup('minuteCols');
+  const secondCols = buildGroup('secondCols');
+
+  function setRow(row, digit){
+    [...row.children].forEach(dot => {
+      const bit = Number(dot.dataset.bit);
+      dot.classList.toggle('lit', (digit & bit) !== 0);
+    });
+  }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    setRow(hourCols.tens, Math.floor(h / 10));
+    setRow(hourCols.ones, h % 10);
+    setRow(minuteCols.tens, Math.floor(m / 10));
+    setRow(minuteCols.ones, m % 10);
+    setRow(secondCols.tens, Math.floor(s / 10));
+    setRow(secondCols.ones, s % 10);
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+      </html>
+  
