@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#161922;
+    --rim:#c9a15c;
+    --rimDim:#5a4d34;
+    --paper:#ede8de;
+    --teal:#4c7a73;
+    --dim: rgba(237,232,222,0.14);
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+    padding:20px;
+  }
+  #panel{
+    background:var(--ink);
+    border:2px solid var(--rim);
+    border-radius:10px;
+    padding:26px 30px;
+    max-width:520px;
+  }
+  .row{
+    display:flex;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:0 14px;
+    line-height:1.9;
+  }
+  .word{
+    font-weight:500;
+    font-size:clamp(14px, 3.4vw, 22px);
+    letter-spacing:0.04em;
+    color:var(--dim);
+    transition:color 0.4s ease, text-shadow 0.4s ease;
+    white-space:nowrap;
+  }
+  .word.active{
+    color:var(--paper);
+  }
+  .word.active.accent{
+    color:var(--rim);
+    text-shadow:0 0 14px rgba(201,161,92,0.45);
+  }
+  #digital{
+    font-size:11px;
+    letter-spacing:0.2em;
+    color:var(--rimDim);
+    text-transform:uppercase;
+  }
+  #digital span{ color:var(--teal); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="panel">
+    <div class="row" data-row="0"></div>
+    <div class="row" data-row="1"></div>
+    <div class="row" data-row="2"></div>
+    <div class="row" data-row="3"></div>
+    <div class="row" data-row="4"></div>
+    <div class="row" data-row="5"></div>
+  </div>
+  <div id="digital">time reads as language, not numbers &mdash; <span id="digitalTime">00:00</span></div>
+</div>
+<script>
+  // Each row is an ordered list of tokens. `id` is what gets matched when
+  // lighting up words; a couple of filler words (id: null) exist purely
+  // for rhythm, the way real word-clocks pad their grids.
+  const GRID = [
+    [ { t: 'IT', id: 'IT' }, { t: 'IS', id: 'IS' }, { t: 'ALMOST', id: null } ],
+    [ { t: 'A', id: null }, { t: 'QUARTER', id: 'M_QUARTER' }, { t: 'HALF', id: 'M_HALF' } ],
+    [ { t: 'TWENTY', id: 'M_TWENTY' }, { t: 'FIVE', id: 'M_FIVE' }, { t: 'TEN', id: 'M_TEN' } ],
+    [ { t: 'PAST', id: 'PAST' }, { t: 'TO', id: 'TO' }, { t: 'EXACTLY', id: null } ],
+    [ { t: 'ONE', id: 'H_1' }, { t: 'TWO', id: 'H_2' }, { t: 'THREE', id: 'H_3' }, { t: 'FOUR', id: 'H_4' }, { t: 'FIVE', id: 'H_5' }, { t: 'SIX', id: 'H_6' } ],
+    [ { t: 'SEVEN', id: 'H_7' }, { t: 'EIGHT', id: 'H_8' }, { t: 'NINE', id: 'H_9' }, { t: 'TEN', id: 'H_10' }, { t: 'ELEVEN', id: 'H_11' }, { t: 'TWELVE', id: 'H_12' } ],
+  ];
+  // O'CLOCK gets its own row so it can stand alone cleanly.
+  GRID.push([ { t: "O'CLOCK", id: 'OCLOCK' } ]);
+
+  const panel = document.getElementById('panel');
+  const digitalTime = document.getElementById('digitalTime');
+
+  // build DOM, adding an extra row for O'CLOCK
+  panel.innerHTML = '';
+  GRID.forEach((row, i) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    row.forEach(tok => {
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = tok.t;
+      if (tok.id) span.dataset.id = tok.id;
+      rowEl.appendChild(span);
+    });
+    panel.appendChild(rowEl);
+  });
+
+  const wordEls = [...panel.querySelectorAll('.word[data-id]')];
+
+  const MINUTE_PHRASES = {
+    0:  [],
+    5:  ['M_FIVE', 'PAST'],
+    10: ['M_TEN', 'PAST'],
+    15: ['M_QUARTER', 'PAST'],
+    20: ['M_TWENTY', 'PAST'],
+    25: ['M_TWENTY', 'M_FIVE', 'PAST'],
+    30: ['M_HALF', 'PAST'],
+    35: ['M_TWENTY', 'M_FIVE', 'TO'],
+    40: ['M_TWENTY', 'TO'],
+    45: ['M_QUARTER', 'TO'],
+    50: ['M_TEN', 'TO'],
+    55: ['M_FIVE', 'TO'],
+  };
+
+  const HOUR_NAMES = ['12','1','2','3','4','5','6','7','8','9','10','11'];
+
+  function activeIds(now){
+    let hour = now.getHours() % 12;
+    let minute = now.getMinutes();
+    const rounded = Math.round(minute / 5) * 5;
+    const roundedMinute = rounded % 60;
+    if (rounded === 60) hour = (hour + 1) % 12;
+
+    const ids = ['IT', 'IS', ...MINUTE_PHRASES[roundedMinute]];
+    if (roundedMinute === 0) ids.push('OCLOCK');
+
+    const displayHour = roundedMinute >= 35 ? (hour + 1) % 12 : hour;
+    const hourNumber = displayHour === 0 ? 12 : displayHour;
+    ids.push('H_' + hourNumber);
+
+    return ids;
+  }
+
+  function render(){
+    const now = new Date();
+    const ids = activeIds(now);
+
+    wordEls.forEach(el => {
+      const isActive = ids.includes(el.dataset.id);
+      el.classList.toggle('active', isActive);
+      el.classList.toggle('accent', isActive && (el.dataset.id === 'IT' || el.dataset.id === 'IS'));
+    });
+
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    digitalTime.textContent = `${hh}:${mm}`;
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
