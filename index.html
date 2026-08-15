@@ -18,6 +18,7 @@
     --grey:#6b6f76;
   }
   *{box-sizing:border-box;}
+  .hidden{ display:none !important; }
   html,body{
     margin:0;
     height:100%;
@@ -50,6 +51,30 @@
   header .mark{ color:var(--brass); }
   header .count{ color:var(--paper); opacity:0.7; }
 
+  /* ---- view tabs ---- */
+  #viewtabs{
+    display:flex;
+    justify-content:center;
+    gap:22px;
+    padding:8px 0 0;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    z-index:5;
+  }
+  #viewtabs button{
+    background:none; border:none; padding:4px 0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:inherit; letter-spacing:inherit; text-transform:inherit;
+    color:var(--grey);
+    border-bottom:1px solid transparent;
+    cursor:pointer;
+  }
+  #viewtabs button.active{
+    color:var(--brass);
+    border-bottom:1px solid var(--brass);
+  }
+
   h1.title{
     font-family:'Fraunces', serif;
     font-weight:500;
@@ -59,6 +84,32 @@
     letter-spacing:0.01em;
     color:var(--paper);
     z-index:5;
+  }
+
+  /* ---- flat list views (variety / best) ---- */
+  .list-view{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 26px 26px;
+  }
+  .list-view.hidden{ display:none; }
+  .list-view .letter{
+    font-size:10px; letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--brass); margin:20px 0 6px;
+  }
+  .list-view .letter:first-child{ margin-top:0; }
+  .row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 0;
+    border-bottom:1px solid var(--brass-dim);
+    cursor:pointer;
+  }
+  .row .name{ font-family:'Fraunces', serif; font-size:16px; font-weight:500; }
+  .row .idx{ font-size:11px; color:var(--grey); letter-spacing:0.1em; }
+  .row.best .name::before{ content:'\2605  '; color:var(--brass); }
+  .list-empty{
+    color:var(--grey); font-size:12px; letter-spacing:0.08em;
+    padding-top:10px; text-transform:uppercase;
   }
 
   /* ---- track / viewport ---- */
@@ -174,6 +225,12 @@
     <span class="count" id="count">01 / 02</span>
   </header>
 
+  <div id="viewtabs">
+    <button data-view="gallery" class="active">Gallery</button>
+    <button data-view="variety">Variety</button>
+    <button data-view="best">Best</button>
+  </div>
+
   <h1 class="title" id="title">Anticlockwise</h1>
 
   <div id="viewport">
@@ -183,6 +240,14 @@
   </div>
 
   <div id="bezel"></div>
+
+  <div class="list-view hidden" id="view-variety">
+    <div id="varietyList"></div>
+  </div>
+
+  <div class="list-view hidden" id="view-best">
+    <div id="bestList"></div>
+  </div>
 
   <footer>
     <span class="hint" id="hint">swipe, drag, or use &#8592; &#8594;</span>
@@ -194,14 +259,8 @@
 <script>
   // ---- Fallback list, only used if auto-discovery below fails ----
   const FALLBACK_CLOCKS = [
-    { name: "Anticlockwise", path: "clocks/anticlockwise_clock.html" },
-    { name: "Binary",        path: "clocks/binary_clock.html" },
-    { name: "Flip",          path: "clocks/flip_clock.html" },
-    { name: "Flip Vertical", path: "clocks/flip_clock_vertical.html" },
-    { name: "Orbit",         path: "clocks/orbit_clock.html" },
-    { name: "Rectangular",   path: "clocks/rectangular_clock.html" },
-    { name: "Triangular",    path: "clocks/triangular_clock.html" },
-    { name: "Word",          path: "clocks/word_clock.html" },
+    { name: "Anticlockwise", path: "clocks/anticlockwise_clock.html", id: "anticlockwise_clock" },
+    { name: "Rectangular",   path: "clocks/rectangular_clock.html", id: "rectangular_clock" },
   ];
 
   function toTitle(filename){
@@ -236,7 +295,7 @@
       const clocks = files
         .filter(f => f.type === 'file' && /\.html?$/i.test(f.name))
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(f => ({ name: toTitle(f.name), path: 'clocks/' + f.name }));
+        .map(f => ({ name: toTitle(f.name), path: 'clocks/' + f.name, id: f.name.replace(/\.html?$/i, '') }));
       return clocks.length ? clocks : FALLBACK_CLOCKS;
     } catch (err) {
       console.warn('Clock auto-discovery failed, using fallback list:', err);
@@ -252,8 +311,19 @@
   const hint = document.getElementById('hint');
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
+  const viewportEl2 = document.getElementById('viewport');
+  const footerEl = document.querySelector('footer');
+  const tabButtons = document.querySelectorAll('#viewtabs button');
+  const varietyListEl = document.getElementById('varietyList');
+  const bestListEl = document.getElementById('bestList');
+  const viewEls = {
+    gallery: [viewportEl2, document.getElementById('bezel'), footerEl],
+    variety: [document.getElementById('view-variety')],
+    best: [document.getElementById('view-best')],
+  };
 
   let CLOCKS = [];
+  let BEST_IDS = [];
   let current = 0;
   let viewportWidth = window.innerWidth;
   let dragging = false;
@@ -302,6 +372,65 @@
     hasInteracted = true;
     hint.classList.add('faded');
   }
+
+  function buildLists(){
+    // Variety — CLOCKS is already alphabetical from discovery/sort above.
+    varietyListEl.innerHTML = '';
+    if (!CLOCKS.length){
+      varietyListEl.innerHTML = '<div class="list-empty">No clocks found</div>';
+    } else {
+      let lastLetter = '';
+      CLOCKS.forEach((c, i) => {
+        const letter = c.name[0].toUpperCase();
+        if (letter !== lastLetter){
+          const l = document.createElement('div');
+          l.className = 'letter';
+          l.textContent = letter;
+          varietyListEl.appendChild(l);
+          lastLetter = letter;
+        }
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `<span class="name">${c.name}</span><span class="idx">${String(i + 1).padStart(2,'0')}</span>`;
+        row.addEventListener('click', () => { goTo(i); switchView('gallery'); });
+        varietyListEl.appendChild(row);
+      });
+    }
+
+    // Best — cross-referenced against clocks/best.json
+    bestListEl.innerHTML = '';
+    const bestClocks = CLOCKS.filter(c => BEST_IDS.includes(c.id));
+    if (!bestClocks.length){
+      bestListEl.innerHTML = '<div class="list-empty">No favourites yet — add an id to clocks/best.json</div>';
+    } else {
+      bestClocks.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'row best';
+        row.innerHTML = `<span class="name">${c.name}</span><span class="idx">&#8250;</span>`;
+        row.addEventListener('click', () => {
+          goTo(CLOCKS.findIndex(x => x.id === c.id));
+          switchView('gallery');
+        });
+        bestListEl.appendChild(row);
+      });
+    }
+  }
+
+  function switchView(view){
+    Object.entries(viewEls).forEach(([key, els]) => {
+      els.forEach(el => el && el.classList.toggle('hidden', key !== view));
+    });
+    tabButtons.forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    if (view === 'gallery'){
+      titleEl.textContent = CLOCKS[current] ? CLOCKS[current].name : '';
+    } else if (view === 'variety'){
+      titleEl.textContent = 'Variety';
+    } else {
+      titleEl.textContent = 'Best Clocks';
+    }
+  }
+
+  tabButtons.forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 
   window.addEventListener('resize', () => {
     viewportWidth = window.innerWidth;
@@ -358,8 +487,16 @@
   // init
   (async function init(){
     CLOCKS = await discoverClocks();
+    try {
+      const res = await fetch('clocks/best.json');
+      const data = await res.json();
+      BEST_IDS = data.best || [];
+    } catch (err) {
+      console.warn('best.json not found or invalid, no favourites shown.', err);
+    }
     buildPanes();
     goTo(0, false);
+    buildLists();
   })();
 </script>
 </body>
