@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Clock — Vertical</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --face-dark:#101319;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  .stage{
+    display:flex; flex-direction:column;
+    gap:clamp(8px, 2vw, 14px);
+    perspective:900px;
+  }
+  .grow{ display:flex; align-items:center; gap:14px; }
+  .glabel{
+    width:14px;
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .grow.minute .glabel{ color:var(--paper); }
+  .grow.second .glabel{ color:var(--teal); }
+  .group{ display:flex; gap:4px; }
+  .card{
+    position:relative;
+    width:clamp(38px, 9vw, 58px);
+    height:clamp(50px, 12vw, 78px);
+  }
+  .flipper{
+    width:100%; height:100%;
+    position:relative;
+    transform-style:preserve-3d;
+    transition:transform 0.5s cubic-bezier(.45,0,.2,1);
+  }
+  .card.flip .flipper{ transform:rotateX(-180deg); }
+  .face{
+    position:absolute; inset:0;
+    backface-visibility:hidden;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(22px, 5.5vw, 38px);
+    color:var(--paper);
+    background:var(--face);
+    border:1px solid var(--rim);
+  }
+  .face.back{ transform:rotateX(180deg); }
+  .card::after{
+    content:'';
+    position:absolute; left:0; right:0; top:50%;
+    height:1px; background:var(--face-dark);
+    z-index:2; pointer-events:none;
+  }
+  #tag{
+    position:absolute;
+    bottom:4%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="stage" id="stage"></div>
+  <div id="tag">stacked, still flips down</div>
+</div>
+<script>
+  const stage = document.getElementById('stage');
+
+  function makeCard(id){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = id;
+    card.innerHTML = `
+      <div class="flipper">
+        <div class="face front">0</div>
+        <div class="face back">0</div>
+      </div>`;
+    return card;
+  }
+
+  function makeRow(prefix, label, extraClass){
+    const grow = document.createElement('div');
+    grow.className = 'grow' + (extraClass ? ' ' + extraClass : '');
+    const glabel = document.createElement('div');
+    glabel.className = 'glabel';
+    glabel.textContent = label;
+    const group = document.createElement('div');
+    group.className = 'group';
+    group.appendChild(makeCard(prefix + '0'));
+    group.appendChild(makeCard(prefix + '1'));
+    grow.appendChild(glabel);
+    grow.appendChild(group);
+    return grow;
+  }
+
+  stage.appendChild(makeRow('h', 'H', 'hour'));
+  stage.appendChild(makeRow('m', 'M', 'minute'));
+  stage.appendChild(makeRow('s', 'S', 'second'));
+
+  function setDigit(cardId, digit){
+    const card = document.getElementById(cardId);
+    const front = card.querySelector('.front');
+    const back = card.querySelector('.back');
+
+    if (front.textContent === digit) return;
+
+    back.textContent = digit;
+    card.classList.add('flip');
+
+    const onEnd = () => {
+      front.textContent = digit;
+      card.classList.remove('flip');
+      card.querySelector('.flipper').style.transition = 'none';
+      void card.offsetWidth;
+      card.querySelector('.flipper').style.transition = '';
+      card.querySelector('.flipper').removeEventListener('transitionend', onEnd);
+    };
+    card.querySelector('.flipper').addEventListener('transitionend', onEnd);
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h);
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+
+    setDigit('h0', hh[0]);
+    setDigit('h1', hh[1]);
+    setDigit('m0', mm[0]);
+    setDigit('m1', mm[1]);
+    setDigit('s0', ss[0]);
+    setDigit('s1', ss[1]);
+  }
+
+  (function initial(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h), mm = pad(now.getMinutes()), ss = pad(now.getSeconds());
+    const map = { h0:hh[0], h1:hh[1], m0:mm[0], m1:mm[1], s0:ss[0], s1:ss[1] };
+    Object.entries(map).forEach(([id, val]) => {
+      const card = document.getElementById(id);
+      card.querySelector('.front').textContent = val;
+      card.querySelector('.back').textContent = val;
+    });
+  })();
+
+  setInterval(render, 1000);
+</script>
+</body>
+  </html>
+  
