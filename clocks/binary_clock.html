@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binary Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#161922;
+    --rim:#c9a15c;
+    --rimDim:#5a4d34;
+    --paper:#ede8de;
+    --teal:#4c7a73;
+    --off: rgba(237,232,222,0.08);
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px;
+    padding:20px;
+  }
+  #panel{
+    background:var(--ink);
+    border:2px solid var(--rim);
+    border-radius:10px;
+    padding:28px 30px 20px;
+    display:flex;
+    gap:22px;
+  }
+  .group{
+    display:flex;
+    gap:12px;
+  }
+  .group + .group{
+    padding-left:16px;
+    border-left:1px solid var(--rimDim);
+  }
+  .col{
+    display:flex;
+    flex-direction:column-reverse; /* LSB at bottom */
+    align-items:center;
+    gap:10px;
+  }
+  .bit{
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:var(--off);
+    border:1px solid var(--rimDim);
+    transition:background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .bit.on{
+    background:var(--paper);
+    border-color:var(--paper);
+    box-shadow:0 0 8px rgba(237,232,222,0.5);
+  }
+  .col.seconds .bit.on{
+    background:var(--teal);
+    border-color:var(--teal);
+    box-shadow:0 0 8px rgba(76,122,115,0.6);
+  }
+  .weight{
+    font-size:9px;
+    color:var(--rimDim);
+    margin-top:2px;
+  }
+  .labels{
+    display:flex;
+    gap:22px;
+  }
+  .labels .group-label{
+    display:flex;
+    gap:12px;
+  }
+  .unit{
+    font-size:10px;
+    letter-spacing:0.18em;
+    color:var(--rim);
+    text-transform:uppercase;
+    text-align:center;
+    width:16px;
+  }
+  #digital{
+    font-size:11px;
+    letter-spacing:0.2em;
+    color:var(--rimDim);
+    text-transform:uppercase;
+  }
+  #digital span{ color:var(--paper); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="panel"></div>
+  <div class="labels" id="labels"></div>
+  <div id="digital">read bottom-to-top, on = 1 &mdash; <span id="digitalTime">00:00:00</span></div>
+</div>
+<script>
+  const panel = document.getElementById('panel');
+  const labelsRow = document.getElementById('labels');
+  const digitalTime = document.getElementById('digitalTime');
+
+  // Each digit column shows up to 4 bits (enough for 0-9; hour-tens and
+  // minute/second-tens only ever need 2-3 but we keep the grid uniform).
+  const STRUCTURE = [
+    { label: 'H', digits: 2, cls: '' },
+    { label: 'M', digits: 2, cls: '' },
+    { label: 'S', digits: 2, cls: 'seconds' },
+  ];
+
+  const BITS = 4;
+  const colEls = []; // flat list of { bitEls: [...] } in render order
+
+  STRUCTURE.forEach(group => {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'group';
+
+    const labelGroup = document.createElement('div');
+    labelGroup.className = 'group-label';
+
+    for (let d = 0; d < group.digits; d++){
+      const col = document.createElement('div');
+      col.className = 'col' + (group.cls ? ' ' + group.cls : '');
+      const bitEls = [];
+      for (let b = 0; b < BITS; b++){
+        const bit = document.createElement('div');
+        bit.className = 'bit';
+        col.appendChild(bit);
+        bitEls.push(bit);
+      }
+      groupEl.appendChild(col);
+      colEls.push(bitEls);
+
+      const unit = document.createElement('div');
+      unit.className = 'unit';
+      unit.textContent = d === 0 ? group.label : '';
+      labelGroup.appendChild(unit);
+    }
+
+    panel.appendChild(groupEl);
+    labelsRow.appendChild(labelGroup);
+  });
+
+  function setColumn(bitEls, value){
+    for (let b = 0; b < BITS; b++){
+      const on = (value >> b) & 1;
+      bitEls[b].classList.toggle('on', !!on);
+    }
+  }
+
+  function render(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    const digits = [
+      Math.floor(h / 10), h % 10,
+      Math.floor(m / 10), m % 10,
+      Math.floor(s / 10), s % 10,
+    ];
+
+    digits.forEach((val, i) => setColumn(colEls[i], val));
+
+    const pad = n => String(n).padStart(2, '0');
+    digitalTime.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
