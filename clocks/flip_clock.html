@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flip Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#161922;
+    --ink-2:#1f2330;
+    --rim:#c9a15c;
+    --rimDim:#5a4d34;
+    --paper:#ede8de;
+    --teal:#4c7a73;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:18px;
+    padding:20px;
+  }
+  #board{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .unit{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  .digits{
+    display:flex;
+    gap:6px;
+  }
+  .unit-label{
+    font-size:10px;
+    letter-spacing:0.2em;
+    color:var(--rim);
+    text-transform:uppercase;
+  }
+  .colon{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:14px;
+    height:64px;
+    padding-bottom:22px;
+  }
+  .colon span{
+    width:6px; height:6px;
+    border-radius:50%;
+    background:var(--rimDim);
+  }
+
+  .flip-digit{
+    position:relative;
+    width:52px;
+    height:74px;
+    perspective:300px;
+  }
+  .card{
+    position:absolute;
+    inset:0;
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow:0 4px 10px rgba(0,0,0,0.35);
+  }
+  .half{
+    position:absolute;
+    left:0; right:0;
+    height:50%;
+    overflow:hidden;
+    display:flex;
+    justify-content:center;
+    background:var(--ink-2);
+    border:1px solid var(--rimDim);
+  }
+  .half span{
+    display:block;
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:44px;
+    color:var(--paper);
+    line-height:74px;
+  }
+  .half.top{
+    top:0;
+    border-bottom:none;
+    border-radius:6px 6px 0 0;
+    align-items:flex-start;
+  }
+  .half.top span{ margin-top:0; }
+  .half.bottom{
+    bottom:0;
+    border-top:1px solid var(--rimDim);
+    border-radius:0 0 6px 6px;
+    align-items:flex-end;
+  }
+  .half.bottom span{ margin-top:-37px; }
+
+  .flip-panel{
+    position:absolute;
+    left:0; right:0;
+    top:0;
+    height:50%;
+    transform-origin:bottom;
+    background:var(--ink-2);
+    border:1px solid var(--rimDim);
+    border-radius:6px 6px 0 0;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    overflow:hidden;
+    backface-visibility:hidden;
+    z-index:3;
+  }
+  .flip-panel span{
+    display:block;
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:44px;
+    color:var(--paper);
+    line-height:74px;
+    margin-top:0;
+  }
+  .flip-panel.animate{
+    transition:transform 0.32s cubic-bezier(.4,0,.2,1);
+    transform:rotateX(-180deg);
+  }
+
+  /* center hinge line, purely cosmetic */
+  .card::after{
+    content:'';
+    position:absolute;
+    left:0; right:0; top:calc(50% - 1px);
+    height:2px;
+    background:rgba(0,0,0,0.5);
+    z-index:4;
+    pointer-events:none;
+  }
+
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:var(--rimDim);
+    text-transform:uppercase;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="board"></div>
+  <div id="hint">flips over, once a second</div>
+</div>
+<script>
+  const board = document.getElementById('board');
+
+  function makeFlipDigit(){
+    const wrap = document.createElement('div');
+    wrap.className = 'flip-digit';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const topHalf = document.createElement('div');
+    topHalf.className = 'half top';
+    const topSpan = document.createElement('span');
+    topHalf.appendChild(topSpan);
+
+    const bottomHalf = document.createElement('div');
+    bottomHalf.className = 'half bottom';
+    const bottomSpan = document.createElement('span');
+    bottomHalf.appendChild(bottomSpan);
+
+    const flipPanel = document.createElement('div');
+    flipPanel.className = 'flip-panel';
+    const flipSpan = document.createElement('span');
+    flipPanel.appendChild(flipSpan);
+
+    card.appendChild(topHalf);
+    card.appendChild(bottomHalf);
+    card.appendChild(flipPanel);
+    wrap.appendChild(card);
+
+    return { wrap, topSpan, bottomSpan, flipPanel, flipSpan, current: '0' };
+  }
+
+  function setDigitInstant(entry, value){
+    entry.topSpan.textContent = value;
+    entry.bottomSpan.textContent = value;
+    entry.flipSpan.textContent = value;
+    entry.current = value;
+  }
+
+  function flipDigit(entry, value){
+    if (entry.current === value) return;
+    entry.flipSpan.textContent = entry.current; // panel starts showing the OLD digit
+    entry.flipPanel.classList.remove('animate');
+    // force reflow so the class removal above actually resets the transform
+    void entry.flipPanel.offsetWidth;
+    entry.flipPanel.classList.add('animate');
+
+    const onEnd = () => {
+      entry.flipPanel.removeEventListener('transitionend', onEnd);
+      entry.flipPanel.classList.remove('animate');
+      entry.topSpan.textContent = value;
+      entry.bottomSpan.textContent = value;
+      entry.flipSpan.textContent = value;
+      entry.current = value;
+    };
+    entry.flipPanel.addEventListener('transitionend', onEnd);
+  }
+
+  function buildUnit(label, digitCount){
+    const unit = document.createElement('div');
+    unit.className = 'unit';
+
+    const digitsRow = document.createElement('div');
+    digitsRow.className = 'digits';
+
+    const entries = [];
+    for (let i = 0; i < digitCount; i++){
+      const entry = makeFlipDigit();
+      setDigitInstant(entry, '0');
+      digitsRow.appendChild(entry.wrap);
+      entries.push(entry);
+    }
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'unit-label';
+    labelEl.textContent = label;
+
+    unit.appendChild(digitsRow);
+    unit.appendChild(labelEl);
+    return { unit, entries };
+  }
+
+  const hourUnit = buildUnit('Hours', 2);
+  const minuteUnit = buildUnit('Minutes', 2);
+  const secondUnit = buildUnit('Seconds', 2);
+
+  function makeColon(){
+    const c = document.createElement('div');
+    c.className = 'colon';
+    c.innerHTML = '<span></span><span></span>';
+    return c;
+  }
+
+  board.appendChild(hourUnit.unit);
+  board.appendChild(makeColon());
+  board.appendChild(minuteUnit.unit);
+  board.appendChild(makeColon());
+  board.appendChild(secondUnit.unit);
+
+  let lastStr = '';
+
+  function render(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const h = pad(now.getHours());
+    const m = pad(now.getMinutes());
+    const s = pad(now.getSeconds());
+    const str = h + m + s;
+    if (str === lastStr) return;
+    lastStr = str;
+
+    const all = [...hourUnit.entries, ...minuteUnit.entries, ...secondUnit.entries];
+    const chars = (h + m + s).split('');
+    all.forEach((entry, i) => flipDigit(entry, chars[i]));
+  }
+
+  render();
+  setInterval(render, 250);
+</script>
+</body>
+</html>
