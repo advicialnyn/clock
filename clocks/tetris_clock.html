@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  .stage{
+    display:flex; align-items:center;
+    gap:clamp(6px, 1.6vw, 12px);
+  }
+  .group{ display:flex; gap:5px; }
+  .colon{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(24px, 6vw, 44px);
+    color:var(--rim);
+    padding:0 2px;
+  }
+  .card{
+    position:relative;
+    width:clamp(34px, 8vw, 58px);
+    height:clamp(48px, 11.5vw, 80px);
+    background:var(--face);
+    border:1px solid var(--rim);
+  }
+  .grid{
+    position:absolute;
+    left:10%; right:10%; top:6%; bottom:6%;
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    grid-template-rows:repeat(7, 1fr);
+    gap:1.5px;
+  }
+  .block{
+    background:var(--paper);
+  }
+  #tag{
+    position:absolute;
+    bottom:4%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="stage" id="stage"></div>
+  <div id="tag">pieces fall, then they shatter</div>
+</div>
+<script>
+  // classic 5x7 dot-matrix digit patterns
+  const FONT = {
+    '0': ['01110','10001','10011','10101','11001','10001','01110'],
+    '1': ['00100','01100','00100','00100','00100','00100','01110'],
+    '2': ['01110','10001','00001','00010','00100','01000','11111'],
+    '3': ['11111','00010','00100','00010','00001','10001','01110'],
+    '4': ['00010','00110','01010','10010','11111','00010','00010'],
+    '5': ['11111','10000','11110','00001','00001','10001','01110'],
+    '6': ['00110','01000','10000','11110','10001','10001','01110'],
+    '7': ['11111','00001','00010','00100','01000','01000','01000'],
+    '8': ['01110','10001','10001','01110','10001','10001','01110'],
+    '9': ['01110','10001','10001','01111','00001','00010','01100'],
+  };
+
+  const stage = document.getElementById('stage');
+  const cardState = new Map(); // id -> { value, gridEl }
+
+  function buildGrid(digit){
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    const rows = FONT[digit] || FONT['0'];
+    rows.forEach((rowStr, r) => {
+      [...rowStr].forEach((ch, c) => {
+        if (ch === '1'){
+          const b = document.createElement('div');
+          b.className = 'block';
+          b.style.gridRowStart = r + 1;
+          b.style.gridColumnStart = c + 1;
+          grid.appendChild(b);
+        }
+      });
+    });
+    return grid;
+  }
+
+  function makeCard(id){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = id;
+    cardState.set(id, { value: null, gridEl: null });
+    return card;
+  }
+
+  function makeGroup(prefix){
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.appendChild(makeCard(prefix + '0'));
+    g.appendChild(makeCard(prefix + '1'));
+    return g;
+  }
+
+  stage.appendChild(makeGroup('h'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('m'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('s'));
+
+  function shatter(gridEl){
+    const blocks = [...gridEl.children];
+    blocks.forEach((b, i) => {
+      const dx = (Math.random() * 36 - 18).toFixed(1) + 'px';
+      const dy = (60 + Math.random() * 70).toFixed(0) + 'px';
+      const rot = (Math.random() * 200 - 100).toFixed(0) + 'deg';
+      const delay = i * 12;
+      b.style.transition = `transform 0.55s cubic-bezier(.55,.06,.68,.19) ${delay}ms, opacity 0.5s ease ${delay + 150}ms`;
+      b.style.transform = `translate(${dx}, ${dy}) rotate(${rot})`;
+      b.style.opacity = '0';
+    });
+    setTimeout(() => gridEl.remove(), 900);
+  }
+
+  function dropIn(cardEl, digit){
+    const grid = buildGrid(digit);
+    grid.style.transform = 'translateY(-140%)';
+    cardEl.appendChild(grid);
+    void cardEl.offsetWidth; // commit starting position
+    grid.style.transition = 'transform 0.5s cubic-bezier(.34,1.56,.64,1)';
+    grid.style.transform = 'translateY(0%)';
+    return grid;
+  }
+
+  function updateCard(id, digit){
+    const state = cardState.get(id);
+    if (state.value === digit) return;
+    state.value = digit;
+
+    const cardEl = document.getElementById(id);
+    if (state.gridEl){
+      shatter(state.gridEl);
+    }
+    state.gridEl = dropIn(cardEl, digit);
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h);
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+
+    updateCard('h0', hh[0]);
+    updateCard('h1', hh[1]);
+    updateCard('m0', mm[0]);
+    updateCard('m1', mm[1]);
+    updateCard('s0', ss[0]);
+    updateCard('s1', ss[1]);
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
