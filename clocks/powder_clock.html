@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Powder Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  .stage{
+    display:flex; align-items:center;
+    gap:clamp(6px, 1.6vw, 12px);
+  }
+  .group{ display:flex; gap:5px; }
+  .colon{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(24px, 6vw, 44px);
+    color:var(--rim);
+    padding:0 2px;
+  }
+  .card{
+    position:relative;
+    width:clamp(38px, 9vw, 64px);
+    height:clamp(56px, 13vw, 92px);
+    background:var(--face);
+    border:1px solid var(--rim);
+    overflow:hidden;
+  }
+  .card canvas{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    display:block;
+  }
+  #tag{
+    position:absolute;
+    bottom:4%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="stage" id="stage"></div>
+  <div id="tag">falls apart into grains, not pieces</div>
+</div>
+<script>
+  const W = 44, H = 64; // logical drawing size per digit
+  const DPR = window.devicePixelRatio || 1;
+  const PARTICLE_R = 0.95;
+  const COLOR = '#f5f2ea';
+
+  // ---- sample each digit glyph into a cloud of grain positions ----
+  const sampleCanvas = document.createElement('canvas');
+  sampleCanvas.width = W; sampleCanvas.height = H;
+  const sctx = sampleCanvas.getContext('2d');
+
+  function samplePoints(char){
+    sctx.clearRect(0, 0, W, H);
+    sctx.fillStyle = '#fff';
+    sctx.font = `bold ${Math.round(H * 0.86)}px Arial, sans-serif`;
+    sctx.textAlign = 'center';
+    sctx.textBaseline = 'middle';
+    sctx.fillText(char, W / 2, H / 2 + 1);
+    const data = sctx.getImageData(0, 0, W, H).data;
+    const pts = [];
+    for (let y = 0; y < H; y += 2){
+      for (let x = 0; x < W; x += 2){
+        const idx = (y * W + x) * 4;
+        if (data[idx + 3] > 120){
+          pts.push({ x: x + (Math.random() - 0.5), y: y + (Math.random() - 0.5) });
+        }
+      }
+    }
+    return pts;
+  }
+
+  const DIGIT_POINTS = {};
+  for (let d = 0; d <= 9; d++){
+    DIGIT_POINTS[String(d)] = samplePoints(String(d));
+  }
+
+  // ---- per-slot particle system ----
+  const stage = document.getElementById('stage');
+  const slots = new Map(); // id -> { canvas, ctx, value, active:[], leaving:[] }
+
+  function makeCard(id){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = id;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+    card.appendChild(canvas);
+
+    slots.set(id, { ctx, value: null, active: [], leaving: [] });
+    return card;
+  }
+
+  function makeGroup(prefix){
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.appendChild(makeCard(prefix + '0'));
+    g.appendChild(makeCard(prefix + '1'));
+    return g;
+  }
+
+  stage.appendChild(makeGroup('h'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('m'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('s'));
+
+  function setDigit(id, digit){
+    const slot = slots.get(id);
+    if (slot.value === digit) return;
+    slot.value = digit;
+
+    // existing grains crumble: give them a little scatter velocity, gravity takes over
+    slot.active.forEach(p => {
+      p.vx = (Math.random() - 0.5) * 1.1;
+      p.vy = Math.random() * 0.6;
+      p.alpha = 1;
+    });
+    slot.leaving.push(...slot.active);
+
+    // new grains fall from just above their target and settle into place
+    const targets = DIGIT_POINTS[digit] || [];
+    slot.active = targets.map(t => ({
+      x: t.x,
+      y: t.y - (18 + Math.random() * 34),
+      tx: t.x,
+      ty: t.y,
+      settled: false,
+    }));
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function tick(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h);
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+
+    setDigit('h0', hh[0]); setDigit('h1', hh[1]);
+    setDigit('m0', mm[0]); setDigit('m1', mm[1]);
+    setDigit('s0', ss[0]); setDigit('s1', ss[1]);
+  }
+
+  function frame(){
+    slots.forEach(slot => {
+      const ctx = slot.ctx;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = COLOR;
+
+      // leaving grains: fall with gravity, fade, then drop out
+      slot.leaving = slot.leaving.filter(p => {
+        p.vy += 0.16;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.025;
+        if (p.alpha <= 0 || p.y > H + 10) return false;
+        ctx.globalAlpha = Math.max(p.alpha, 0);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PARTICLE_R, 0, Math.PI * 2);
+        ctx.fill();
+        return true;
+      });
+
+      // active grains: ease toward their target position and settle
+      ctx.globalAlpha = 1;
+      slot.active.forEach(p => {
+        if (!p.settled){
+          p.x += (p.tx - p.x) * 0.18;
+          p.y += (p.ty - p.y) * 0.18;
+          if (Math.abs(p.tx - p.x) < 0.35 && Math.abs(p.ty - p.y) < 0.35){
+            p.x = p.tx; p.y = p.ty; p.settled = true;
+          }
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PARTICLE_R, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    });
+    requestAnimationFrame(frame);
+  }
+
+  tick();
+  setInterval(tick, 1000);
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
