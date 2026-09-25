@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Water Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px;
+  }
+  .tubes{
+    display:flex;
+    gap:clamp(16px, 5vw, 34px);
+    align-items:flex-end;
+  }
+  .col{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .tube{
+    position:relative;
+    width:clamp(44px, 11vw, 68px);
+    height:clamp(150px, 40vh, 300px);
+    border:1.5px solid var(--rim);
+    border-radius:999px;
+    background:var(--face);
+    overflow:hidden;
+  }
+  .waterFill{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    height:0%;
+  }
+  .waterFill .body{
+    position:absolute;
+    left:0; right:0; bottom:0; top:8px;
+  }
+  .waveWrap{
+    position:absolute;
+    left:0; top:-8px;
+    width:200%;
+    height:20px;
+    animation:waveScroll 3.4s linear infinite;
+  }
+  .waveWrap svg{ display:block; width:100%; height:100%; }
+  @keyframes waveScroll{
+    from{ transform:translateX(0%); }
+    to{ transform:translateX(-50%); }
+  }
+  .col.hour .body, .col.hour path{ fill:var(--rim); background:var(--rim); }
+  .col.minute .body, .col.minute path{ fill:var(--paper); background:var(--paper); }
+  .col.second .body, .col.second path{ fill:var(--teal); background:var(--teal); }
+
+  .glabel{
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .value{
+    font-size:14px;
+    color:var(--paper);
+  }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="tubes">
+    <div class="col hour">
+      <div class="tube">
+        <div class="waterFill" id="hourFill">
+          <div class="body"></div>
+          <div class="waveWrap">
+            <svg viewBox="0 0 400 40" preserveAspectRatio="none">
+              <path d="M0 20 C 50 4, 150 36, 200 20 C 250 4, 350 36, 400 20 L400 40 L0 40 Z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="glabel">H</div>
+      <div class="value" id="hourVal">00</div>
+    </div>
+    <div class="col minute">
+      <div class="tube">
+        <div class="waterFill" id="minuteFill">
+          <div class="body"></div>
+          <div class="waveWrap">
+            <svg viewBox="0 0 400 40" preserveAspectRatio="none">
+              <path d="M0 20 C 50 4, 150 36, 200 20 C 250 4, 350 36, 400 20 L400 40 L0 40 Z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="glabel">M</div>
+      <div class="value" id="minuteVal">00</div>
+    </div>
+    <div class="col second">
+      <div class="tube">
+        <div class="waterFill" id="secondFill">
+          <div class="body"></div>
+          <div class="waveWrap">
+            <svg viewBox="0 0 400 40" preserveAspectRatio="none">
+              <path d="M0 20 C 50 4, 150 36, 200 20 C 250 4, 350 36, 400 20 L400 40 L0 40 Z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="glabel">S</div>
+      <div class="value" id="secondVal">00</div>
+    </div>
+  </div>
+  <div id="tag">rises with time, ripples always</div>
+</div>
+<script>
+  const hourFill = document.getElementById('hourFill');
+  const minuteFill = document.getElementById('minuteFill');
+  const secondFill = document.getElementById('secondFill');
+  const hourVal = document.getElementById('hourVal');
+  const minuteVal = document.getElementById('minuteVal');
+  const secondVal = document.getElementById('secondVal');
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function frame(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    const displayHour = h === 0 ? 12 : h;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+
+    const hourFrac   = (h + m / 60) / 12;
+    const minuteFrac = (m + s / 60) / 60;
+    const secondFrac = (s + ms / 1000) / 60;
+
+    hourFill.style.height = (hourFrac * 100) + '%';
+    minuteFill.style.height = (minuteFrac * 100) + '%';
+    secondFill.style.height = (secondFrac * 100) + '%';
+
+    hourVal.textContent = pad(displayHour);
+    minuteVal.textContent = pad(m);
+    secondVal.textContent = pad(s);
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+</script>
+</body>
+</html>
