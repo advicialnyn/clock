@@ -17,6 +17,15 @@
     --teal:#4c7a73;
     --grey:#6b6f76;
   }
+  html[data-theme="light"]{
+    --ink:#f2ede0;
+    --ink-2:#e6ddc6;
+    --paper:#1c1f26;
+    --brass:#9c6f22;
+    --brass-dim:#cbb98f;
+    --teal:#2d5951;
+    --grey:#6b6257;
+  }
   *{box-sizing:border-box;}
   .hidden{ display:none !important; }
   html,body{
@@ -27,6 +36,7 @@
     font-family:'IBM Plex Mono', monospace;
     overflow:hidden;
     -webkit-tap-highlight-color:transparent;
+    transition:background 0.3s ease, color 0.3s ease;
   }
   #app{
     position:relative;
@@ -50,6 +60,21 @@
   }
   header .mark{ color:var(--brass); }
   header .count{ color:var(--paper); opacity:0.7; }
+  #themeToggle{
+    background:none;
+    border:1px solid var(--brass-dim);
+    color:var(--brass);
+    width:26px; height:26px;
+    border-radius:50%;
+    font-size:12px;
+    line-height:1;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    margin-left:12px;
+    transition:border-color 0.2s ease;
+  }
+  #themeToggle:hover{ border-color:var(--brass); }
+  .header-right{ display:flex; align-items:center; }
 
   /* ---- view tabs ---- */
   #viewtabs{
@@ -222,7 +247,10 @@
 
   <header>
     <span><span class="mark">&#9679;</span> TIMEPIECES</span>
-    <span class="count" id="count">01 / 02</span>
+    <span class="header-right">
+      <span class="count" id="count">01 / 02</span>
+      <button id="themeToggle" aria-label="Toggle light/dark theme">&#9789;</button>
+    </span>
   </header>
 
   <div id="viewtabs">
@@ -257,6 +285,24 @@
 </div>
 
 <script>
+  // ---- theme: dark/light, persisted, respects system preference on first visit ----
+  const themeToggle = document.getElementById('themeToggle');
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    themeToggle.textContent = theme === 'light' ? '\u2600' : '\u263D';
+    localStorage.setItem('theme', theme);
+  }
+  (function initTheme(){
+    const stored = localStorage.getItem('theme');
+    if (stored){ applyTheme(stored); return; }
+    const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+    applyTheme(prefersLight ? 'light' : 'dark');
+  })();
+  themeToggle.addEventListener('click', () => {
+    const now = document.documentElement.getAttribute('data-theme');
+    applyTheme(now === 'light' ? 'dark' : 'light');
+  });
+
   // ---- Fallback list, only used if auto-discovery below fails ----
   const FALLBACK_CLOCKS = [
     { name: "Anticlockwise", path: "clocks/anticlockwise_clock.html", id: "anticlockwise_clock" },
