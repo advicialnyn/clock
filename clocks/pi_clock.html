@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pi Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:100%; max-height:100%; }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#8a795a;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="clock" width="600" height="600"></canvas>
+  <div id="label">irrational, but still on time</div>
+</div>
+<script>
+  const canvas = document.getElementById('clock');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 600;
+  const CX = SIZE / 2, CY = SIZE / 2;
+  const R = 240;
+
+  const COL = {
+    face: '#161922',
+    rim: '#e0b975',
+    paper: '#f5f2ea',
+    teal: '#6fa89f',
+  };
+
+  // hour position i (0 = 12 o'clock) labeled as i * pi/6, reduced
+  const PI_LABELS = ['0', '\u03c0/6', '\u03c0/3', '\u03c0/2', '2\u03c0/3', '5\u03c0/6',
+                      '\u03c0', '7\u03c0/6', '4\u03c0/3', '3\u03c0/2', '5\u03c0/3', '11\u03c0/6'];
+
+  function drawFace(){
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.fillStyle = COL.face;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COL.rim;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(CX, CY);
+
+    // minute ticks
+    for (let i = 0; i < 60; i++){
+      if (i % 5 === 0) continue; // skip where hour labels sit
+      const a = (i / 60) * Math.PI * 2;
+      const inner = R - 14;
+      const outer = R - 8;
+      ctx.beginPath();
+      ctx.moveTo(inner * Math.sin(a), -inner * Math.cos(a));
+      ctx.lineTo(outer * Math.sin(a), -outer * Math.cos(a));
+      ctx.strokeStyle = COL.paper;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // pi-fraction hour labels
+    ctx.font = '22px "IBM Plex Mono", monospace';
+    ctx.fillStyle = COL.rim;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelRadius = R - 46;
+    for (let i = 0; i < 12; i++){
+      const a = (i / 12) * Math.PI * 2;
+      const x = labelRadius * Math.sin(a);
+      const y = -labelRadius * Math.cos(a);
+      ctx.fillText(PI_LABELS[i], x, y);
+    }
+
+    ctx.restore();
+  }
+
+  function drawHand(angle, length, width, color){
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -length);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function tick(){
+    const now = new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    const hourAngle   = ((h + m / 60) / 12) * Math.PI * 2;
+    const minuteAngle = (m / 60) * Math.PI * 2;
+    const secondAngle = (s / 60) * Math.PI * 2;
+
+    drawFace();
+    drawHand(hourAngle, 118, 6, COL.rim);
+    drawHand(minuteAngle, 168, 4, COL.paper);
+    drawHand(secondAngle, 190, 1.5, COL.teal);
+
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fillStyle = COL.rim;
+    ctx.fill();
+    ctx.restore();
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
