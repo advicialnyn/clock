@@ -888,79 +888,56 @@
 
   async function discoverClocks(){
 
-    const repoInfo =
-      detectRepo();
+  try{
 
+    const response = await fetch(
+      "https://api.github.com/repos/advicialnyn/clock/contents/clocks"
+    );
 
-    if(!repoInfo)
-      return FALLBACK_CLOCKS;
-
-
-    try{
-
-      const res =
-        await fetch(
-          `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/contents/clocks`
-        );
-
-
-      if(!res.ok)
-        throw new Error(
-          'GitHub API error ' +
-          res.status
-        );
-
-
-      const files =
-        await res.json();
-
-
-      const clocks =
-        files
-
-          .filter(
-            f =>
-              f.type === 'file' &&
-              /\.html?$/i.test(f.name)
-          )
-
-          .sort(
-            (a,b) =>
-              a.name.localeCompare(
-                b.name,
-                undefined,
-                {
-                  sensitivity:'base'
-                }
-              )
-          )
-
-          .map(
-            f => ({
-              name:toTitle(f.name),
-              path:'clocks/' + f.name
-            })
-          );
-
-
-      return clocks.length
-        ? clocks
-        : FALLBACK_CLOCKS;
-
-
-    }catch(err){
-
-      console.warn(
-        'Clock auto-discovery failed:',
-        err
+    if(!response.ok){
+      throw new Error(
+        "GitHub API error: " + response.status
       );
-
-      return FALLBACK_CLOCKS;
-
     }
+
+    const files = await response.json();
+
+    const clocks = files
+      .filter(file =>
+        file.type === "file" &&
+        file.name.toLowerCase().endsWith(".html")
+      )
+      .sort((a,b) =>
+        a.name.localeCompare(
+          b.name,
+          undefined,
+          { sensitivity:"base" }
+        )
+      )
+      .map(file => ({
+        name: toTitle(file.name),
+        path: "clocks/" + file.name
+      }));
+
+    console.log(
+      "Found clocks:",
+      clocks
+    );
+
+    return clocks;
+
+  }catch(error){
+
+    console.error(
+      "Could not load clocks:",
+      error
+    );
+
+    return FALLBACK_CLOCKS;
 
   }
 
+}
 
   /* =====================================================
      ELEMENTS
