@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abacus Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    padding:16px;
+  }
+  #frame{
+    background:#161922;
+    border:2px solid #c9a15c;
+    border-radius:12px;
+    padding:18px 22px;
+  }
+  canvas{ display:block; max-width:100%; }
+  #bigTime{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(22px, 5vw, 30px);
+    color:#ede8de;
+  }
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:#5a4d34;
+    text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bigTime">00:00:00</div>
+  <div id="frame"><canvas id="ab" width="500" height="520"></canvas></div>
+  <div id="hint">beads above the bar count the digit</div>
+</div>
+<script>
+  const canvas = document.getElementById('ab');
+  const ctx = canvas.getContext('2d');
+  const W = 500, H = 520;
+
+  const COL = {
+    rod: '#5a4d34',
+    beam: '#c9a15c',
+    frameLine: '#5a4d34',
+    activeH: '#c9a15c',
+    activeM: '#ede8de',
+    activeS: '#4c7a73',
+    inactive: 'rgba(237,232,222,0.10)',
+    inactiveStroke: 'rgba(90,77,52,0.6)',
+  };
+
+  const BEAM_Y = 250;
+  const BEAD_D = 21; // step distance between adjacent beads
+  const BEAD_R = 9;
+  const TOP_MARGIN = 30;
+  const BOTTOM_MARGIN = 30;
+
+  // rod x-positions: two per group, with extra spacing between groups
+  const rodX = [];
+  let x = 66;
+  const withinGroupGap = 56;
+  const betweenGroupGap = 92;
+  for (let g = 0; g < 3; g++){
+    rodX.push(x);
+    rodX.push(x + withinGroupGap);
+    x += withinGroupGap + betweenGroupGap;
+  }
+
+  function drawFrame(){
+    ctx.clearRect(0, 0, W, H);
+
+    // top and bottom rails
+    ctx.strokeStyle = COL.frameLine;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(rodX[0] - 24, TOP_MARGIN - 6);
+    ctx.lineTo(rodX[5] + 24, TOP_MARGIN - 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rodX[0] - 24, H - BOTTOM_MARGIN + 6);
+    ctx.lineTo(rodX[5] + 24, H - BOTTOM_MARGIN + 6);
+    ctx.stroke();
+
+    // rods
+    rodX.forEach(rx => {
+      ctx.beginPath();
+      ctx.moveTo(rx, TOP_MARGIN - 6);
+      ctx.lineTo(rx, H - BOTTOM_MARGIN + 6);
+      ctx.strokeStyle = COL.rod;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    // crossbar (the reckoning beam)
+    ctx.beginPath();
+    ctx.moveTo(rodX[0] - 24, BEAM_Y);
+    ctx.lineTo(rodX[5] + 24, BEAM_Y);
+    ctx.strokeStyle = COL.beam;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  function drawRodDigit(rx, digit, activeColor){
+    const active = digit;
+    const inactive = 9 - digit;
+
+    // beads pushed up above the beam (the counted value)
+    for (let i = 0; i < active; i++){
+      const cy = BEAM_Y - BEAD_D * (i + 1) + BEAD_D / 2;
+      ctx.beginPath();
+      ctx.arc(rx, cy, BEAD_R, 0, Math.PI * 2);
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // remaining beads resting below the beam
+    for (let j = 0; j < inactive; j++){
+      const cy = BEAM_Y + BEAD_D * (j + 1) + 2;
+      ctx.beginPath();
+      ctx.arc(rx, cy, BEAD_R, 0, Math.PI * 2);
+      ctx.fillStyle = COL.inactive;
+      ctx.strokeStyle = COL.inactiveStroke;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fill();
+    }
+  }
+
+  function drawGroupLabels(){
+    ctx.font = "500 12px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = '#c9a15c';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labels = ['H', 'M', 'S'];
+    for (let g = 0; g < 3; g++){
+      const midX = (rodX[g * 2] + rodX[g * 2 + 1]) / 2;
+      ctx.fillText(labels[g], midX, H - BOTTOM_MARGIN + 24);
+    }
+  }
+
+  function render(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    const digits = [
+      Math.floor(h / 10), h % 10,
+      Math.floor(m / 10), m % 10,
+      Math.floor(s / 10), s % 10,
+    ];
+    const colors = [COL.activeH, COL.activeH, COL.activeM, COL.activeM, COL.activeS, COL.activeS];
+
+    drawFrame();
+    digits.forEach((d, i) => drawRodDigit(rodX[i], d, colors[i]));
+    drawGroupLabels();
+
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('bigTime').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
