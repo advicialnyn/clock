@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sundial Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:100%; max-height:100%; }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="clock" width="600" height="600"></canvas>
+  <div id="label">a shadow instead of hands &mdash; stylized, not geographically accurate</div>
+</div>
+<script>
+  const canvas = document.getElementById('clock');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 600;
+  const CX = SIZE / 2;
+  const CY = SIZE / 2 + 30; // dial sits slightly below center to leave room for the sky arc
+  const DIAL_R = 210;
+
+  const COL = {
+    face: '#161922',
+    faceNight: '#101219',
+    rim: '#c9a15c',
+    rimDim: '#5a4d34',
+    paper: '#ede8de',
+    teal: '#4c7a73',
+    sun: '#e6c383',
+    moon: '#c9c9d1',
+  };
+
+  const SKY_TOP = 70;
+  const SKY_R = 190;
+
+  function drawSky(hourFraction, isDaylight){
+    // faint arc guide from sunrise (left) to sunset (right)
+    ctx.beginPath();
+    ctx.arc(CX, CY, SKY_R, Math.PI, 0, false);
+    ctx.strokeStyle = 'rgba(237,232,222,0.10)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 7]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // sun/moon position along the arc; night wraps the same arc for simplicity
+    const dayProgress = ((hourFraction - 6) / 12); // 0 at 6am, 1 at 6pm
+    const nightProgress = ((hourFraction - 18 + 24) % 24) / 12; // 0 at 6pm, 1 at 6am
+    const progress = isDaylight ? dayProgress : nightProgress;
+    const angle = Math.PI - progress * Math.PI; // PI (left) -> 0 (right)
+
+    const bodyX = CX + SKY_R * Math.cos(angle);
+    const bodyY = CY - Math.abs(SKY_R * Math.sin(angle));
+
+    ctx.beginPath();
+    ctx.arc(bodyX, bodyY, 12, 0, Math.PI * 2);
+    if (isDaylight){
+      const g = ctx.createRadialGradient(bodyX, bodyY, 0, bodyX, bodyY, 22);
+      g.addColorStop(0, 'rgba(230,195,131,0.65)');
+      g.addColorStop(1, 'rgba(230,195,131,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(bodyX, bodyY, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(bodyX, bodyY, 11, 0, Math.PI * 2);
+      ctx.fillStyle = COL.sun;
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(bodyX, bodyY, 10, 0, Math.PI * 2);
+      ctx.fillStyle = COL.moon;
+      ctx.fill();
+    }
+  }
+
+  function drawDial(isDaylight){
+    ctx.beginPath();
+    ctx.arc(CX, CY, DIAL_R + 8, 0, Math.PI * 2);
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(CX, CY, DIAL_R, 0, Math.PI * 2);
+    const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, DIAL_R);
+    if (isDaylight){
+      g.addColorStop(0, '#1c2030');
+      g.addColorStop(1, COL.face);
+    } else {
+      g.addColorStop(0, '#14151c');
+      g.addColorStop(1, COL.faceNight);
+    }
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // hour ticks 0-23, matching the 24h rotation of the shadow
+    for (let h = 0; h < 24; h++){
+      const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
+      const isMajor = h % 6 === 0;
+      const inner = DIAL_R - (isMajor ? 26 : 16);
+      const outer = DIAL_R - 6;
+      ctx.beginPath();
+      ctx.moveTo(CX + inner * Math.cos(angle), CY + inner * Math.sin(angle));
+      ctx.lineTo(CX + outer * Math.cos(angle), CY + outer * Math.sin(angle));
+      ctx.strokeStyle = isMajor ? COL.rim : COL.rimDim;
+      ctx.lineWidth = isMajor ? 2.5 : 1;
+      ctx.stroke();
+
+      if (isMajor){
+        const lx = CX + (inner - 20) * Math.cos(angle);
+        const ly = CY + (inner - 20) * Math.sin(angle);
+        ctx.font = "500 13px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = COL.rim;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(h).padStart(2, '0'), lx, ly);
+      }
+    }
+  }
+
+  function drawGnomonAndShadow(hourFraction, isDaylight){
+    // gnomon: a small raised triangle at the center
+    ctx.beginPath();
+    ctx.moveTo(CX, CY - 22);
+    ctx.lineTo(CX - 9, CY + 6);
+    ctx.lineTo(CX + 9, CY + 6);
+    ctx.closePath();
+    ctx.fillStyle = COL.paper;
+    ctx.fill();
+    ctx.strokeStyle = COL.rimDim;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    if (!isDaylight) return; // no shadow at night
+
+    // shadow points opposite the sun, length grows the further from solar noon
+    const distFromNoon = Math.abs(hourFraction - 12); // 0 at noon, up to 12
+    const lengthFrac = Math.min(1, distFromNoon / 6); // shortest at noon, long by mid-morning/afternoon
+    const shadowLen = 46 + lengthFrac * (DIAL_R - 70);
+
+    const shadowAngle = (hourFraction / 24) * Math.PI * 2 - Math.PI / 2 + Math.PI; // opposite the hour position
+    const tipX = CX + shadowLen * Math.cos(shadowAngle);
+    const tipY = CY + shadowLen * Math.sin(shadowAngle);
+
+    const grad = ctx.createLinearGradient(CX, CY, tipX, tipY);
+    grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.05)');
+
+    const perp = shadowAngle + Math.PI / 2;
+    const baseHalf = 7;
+    ctx.beginPath();
+    ctx.moveTo(CX + baseHalf * Math.cos(perp), CY + baseHalf * Math.sin(perp));
+    ctx.lineTo(CX - baseHalf * Math.cos(perp), CY - baseHalf * Math.sin(perp));
+    ctx.lineTo(tipX, tipY);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  function tick(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const hourFraction = h + m / 60 + s / 3600;
+    const isDaylight = hourFraction >= 6 && hourFraction < 18;
+
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    drawSky(hourFraction, isDaylight);
+    drawDial(isDaylight);
+    drawGnomonAndShadow(hourFraction, isDaylight);
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
