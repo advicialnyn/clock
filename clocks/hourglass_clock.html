@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hourglass Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px;
+  }
+  canvas{ max-width:88%; max-height:78%; }
+  #readout{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+  }
+  #time{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(24px, 5.5vw, 34px);
+    color:#ede8de;
+  }
+  #caption{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="hg" width="420" height="560"></canvas>
+  <div id="readout">
+    <div id="time">00:00:00</div>
+    <div id="caption">drains fully once an hour</div>
+  </div>
+</div>
+<script>
+  const canvas = document.getElementById('hg');
+  const ctx = canvas.getContext('2d');
+  const W = 420, H = 560;
+  const timeEl = document.getElementById('time');
+
+  const COL = {
+    rim: '#c9a15c',
+    rimDim: '#5a4d34',
+    glass: 'rgba(237,232,222,0.05)',
+    sand: '#c9a15c',
+    sandDim: '#9c7d47',
+    frame: '#161922',
+  };
+
+  // geometry: two mirrored triangles sharing a neck point at vertical center
+  const midX = W / 2;
+  const topY = 60, neckY = H / 2, bottomY = H - 60;
+  const halfW = 130;
+  const neckHalfW = 7;
+
+  const topTri = [
+    { x: midX - halfW, y: topY },
+    { x: midX + halfW, y: topY },
+    { x: midX + neckHalfW, y: neckY },
+    { x: midX - neckHalfW, y: neckY },
+  ];
+  const bottomTri = [
+    { x: midX - neckHalfW, y: neckY },
+    { x: midX + neckHalfW, y: neckY },
+    { x: midX + halfW, y: bottomY },
+    { x: midX - halfW, y: bottomY },
+  ];
+
+  function pathFrom(points){
+    ctx.beginPath();
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+  }
+
+  function drawFrame(){
+    // wooden/brass end caps
+    ctx.fillStyle = COL.frame;
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.roundRect(midX - halfW - 26, topY - 34, (halfW + 26) * 2, 26, 6);
+    ctx.fill(); ctx.stroke();
+
+    ctx.beginPath();
+    ctx.roundRect(midX - halfW - 26, bottomY + 8, (halfW + 26) * 2, 26, 6);
+    ctx.fill(); ctx.stroke();
+
+    // corner posts
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(midX + side * (halfW + 20), topY - 8);
+      ctx.lineTo(midX + side * (halfW + 20), bottomY + 8);
+      ctx.strokeStyle = COL.rimDim;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    });
+
+    // glass silhouette
+    pathFrom([...topTri]);
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 3;
+    ctx.fillStyle = COL.glass;
+    ctx.fill();
+    ctx.stroke();
+
+    pathFrom([...bottomTri]);
+    ctx.fillStyle = COL.glass;
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function drawTopSand(remainingFraction){
+    if (remainingFraction <= 0) return;
+    const levelY = neckY - remainingFraction * (neckY - topY);
+    ctx.save();
+    pathFrom([...topTri]);
+    ctx.clip();
+    ctx.fillStyle = COL.sand;
+    ctx.fillRect(midX - halfW, levelY, halfW * 2, neckY - levelY);
+    // subtle surface highlight
+    ctx.fillStyle = COL.sandDim;
+    ctx.fillRect(midX - halfW, levelY, halfW * 2, 4);
+    ctx.restore();
+  }
+
+  function drawBottomSand(elapsedFraction){
+    if (elapsedFraction <= 0) return;
+    const levelY = bottomY - elapsedFraction * (bottomY - neckY);
+    ctx.save();
+    pathFrom([...bottomTri]);
+    ctx.clip();
+    ctx.fillStyle = COL.sand;
+    ctx.fillRect(midX - halfW, levelY, halfW * 2, bottomY - levelY);
+    ctx.fillStyle = COL.sandDim;
+    ctx.fillRect(midX - halfW, levelY, halfW * 2, 4);
+    ctx.restore();
+  }
+
+  function drawStream(elapsedFraction, tNow){
+    // decorative falling grains through the neck, purely for a sense of motion
+    if (elapsedFraction <= 0.002 || elapsedFraction >= 0.998) return;
+    ctx.strokeStyle = COL.sand;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(midX, neckY - 2);
+    ctx.lineTo(midX, neckY + 2);
+    ctx.stroke();
+
+    for (let i = 0; i < 5; i++){
+      const phase = ((tNow / 260) + i / 5) % 1;
+      const gy = neckY + phase * 26 - 4;
+      const jitter = Math.sin((tNow / 90) + i) * 1.4;
+      ctx.beginPath();
+      ctx.arc(midX + jitter, gy, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = COL.sand;
+      ctx.globalAlpha = 1 - phase * 0.6;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function tick(){
+    const now = new Date();
+    const s = now.getSeconds();
+    const m = now.getMinutes();
+    const h = now.getHours();
+
+    const elapsedFraction = (m * 60 + s) / 3600; // progress through the current hour
+    const remainingFraction = 1 - elapsedFraction;
+
+    ctx.clearRect(0, 0, W, H);
+    drawFrame();
+    drawTopSand(remainingFraction);
+    drawBottomSand(elapsedFraction);
+    drawStream(elapsedFraction, performance.now());
+
+    const pad = n => String(n).padStart(2, '0');
+    timeEl.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
