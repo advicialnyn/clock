@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Domino Clock Vertical</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#161922;
+    --ink-2:#1f2330;
+    --rim:#c9a15c;
+    --rimDim:#5a4d34;
+    --paper:#ede8de;
+    --teal:#4c7a73;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2vh;
+    padding:16px;
+    height:100%;
+    justify-content:center;
+  }
+  #bigTime{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(24px, 6vh, 38px);
+    color:var(--paper);
+    letter-spacing:0.04em;
+  }
+  #board{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2vh;
+  }
+  .unit{
+    display:flex;
+    align-items:center;
+    gap:2.4vh;
+  }
+  .unit-label{
+    font-size:2vh;
+    letter-spacing:0.2em;
+    color:var(--rim);
+    text-transform:uppercase;
+    width:5ch;
+    text-align:right;
+  }
+  .tiles{
+    display:flex;
+    gap:1.6vh;
+  }
+  .tile{
+    width:15vh;
+    height:15vh;
+    border-radius:1.4vh;
+    background:var(--ink-2);
+    border:1px solid var(--rimDim);
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr);
+    padding:2vh;
+    box-sizing:border-box;
+    box-shadow:0 1vh 2vh rgba(0,0,0,0.35);
+  }
+  .pip{
+    width:2vh;
+    height:2vh;
+    border-radius:50%;
+    margin:auto;
+    background:transparent;
+    transition:background 0.25s ease, box-shadow 0.25s ease;
+  }
+  .pip.on{
+    background:var(--paper);
+    box-shadow:0 0 1.4vh rgba(237,232,222,0.55);
+  }
+  .tile.seconds .pip.on{
+    background:var(--teal);
+    box-shadow:0 0 1.4vh rgba(76,122,115,0.65);
+  }
+  #hint{
+    font-size:1.6vh;
+    letter-spacing:0.16em;
+    color:var(--rimDim);
+    text-transform:uppercase;
+    text-align:center;
+  }
+  @media (max-width:420px){
+    .unit-label{ width:4ch; font-size:11px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bigTime">00:00:00</div>
+  <div id="board"></div>
+  <div id="hint">each tile is a digit, 0 to 9, as pips</div>
+</div>
+<script>
+  const board = document.getElementById('board');
+  const bigTime = document.getElementById('bigTime');
+
+  const PIP_LAYOUTS = {
+    0: [],
+    1: [4],
+    2: [0, 8],
+    3: [0, 4, 8],
+    4: [0, 2, 6, 8],
+    5: [0, 2, 4, 6, 8],
+    6: [0, 2, 3, 5, 6, 8],
+    7: [0, 2, 3, 4, 5, 6, 8],
+    8: [0, 2, 3, 4, 5, 6, 7, 8],
+    9: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+  };
+
+  function makeTile(isSeconds){
+    const tile = document.createElement('div');
+    tile.className = 'tile' + (isSeconds ? ' seconds' : '');
+    const pipEls = [];
+    for (let p = 0; p < 9; p++){
+      const pip = document.createElement('div');
+      pip.className = 'pip';
+      tile.appendChild(pip);
+      pipEls.push(pip);
+    }
+    return { tile, pipEls };
+  }
+
+  function setTile(pipEls, digit){
+    const active = PIP_LAYOUTS[digit] || [];
+    pipEls.forEach((pip, i) => pip.classList.toggle('on', active.includes(i)));
+  }
+
+  function buildUnit(label, isSeconds){
+    const unit = document.createElement('div');
+    unit.className = 'unit';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'unit-label';
+    labelEl.textContent = label;
+
+    const tilesRow = document.createElement('div');
+    tilesRow.className = 'tiles';
+
+    const entries = [];
+    for (let i = 0; i < 2; i++){
+      const entry = makeTile(isSeconds);
+      tilesRow.appendChild(entry.tile);
+      entries.push(entry.pipEls);
+    }
+
+    unit.appendChild(labelEl);
+    unit.appendChild(tilesRow);
+    return { unit, entries };
+  }
+
+  const hourUnit = buildUnit('HH', false);
+  const minuteUnit = buildUnit('MM', false);
+  const secondUnit = buildUnit('SS', true);
+
+  board.appendChild(hourUnit.unit);
+  board.appendChild(minuteUnit.unit);
+  board.appendChild(secondUnit.unit);
+
+  function render(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    const digits = [
+      Math.floor(h / 10), h % 10,
+      Math.floor(m / 10), m % 10,
+      Math.floor(s / 10), s % 10,
+    ];
+    const allTiles = [...hourUnit.entries, ...minuteUnit.entries, ...secondUnit.entries];
+    digits.forEach((val, i) => setTile(allTiles[i], val));
+
+    const pad = n => String(n).padStart(2, '0');
+    bigTime.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
