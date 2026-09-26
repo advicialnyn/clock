@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morse Code Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:22px;
+    padding:20px;
+  }
+  #lampMount{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  #lamp{
+    width:90px;
+    height:90px;
+    border-radius:50%;
+    background:#161922;
+    border:3px solid #5a4d34;
+    box-shadow:inset 0 0 20px rgba(0,0,0,0.6);
+    transition:background 0.05s linear, box-shadow 0.05s linear, border-color 0.05s linear;
+  }
+  #lamp.on{
+    background:#e6c383;
+    border-color:#c9a15c;
+    box-shadow:0 0 40px rgba(230,195,131,0.75), inset 0 0 14px rgba(255,255,255,0.4);
+  }
+  #base{
+    width:40px;
+    height:14px;
+    background:#161922;
+    border:2px solid #5a4d34;
+    border-radius:0 0 4px 4px;
+  }
+  #morseText{
+    font-size:15px;
+    letter-spacing:0.12em;
+    color:#c9a15c;
+    text-align:center;
+    max-width:420px;
+    line-height:1.8;
+  }
+  #bigTime{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(22px, 5vw, 30px);
+    color:#ede8de;
+  }
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:#5a4d34;
+    text-transform:uppercase;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="lampMount">
+    <div id="lamp"></div>
+    <div id="base"></div>
+  </div>
+  <div id="bigTime">00:00:00</div>
+  <div id="morseText"></div>
+  <div id="hint">flashes each digit, loops as the time changes</div>
+</div>
+<script>
+  const lamp = document.getElementById('lamp');
+  const morseTextEl = document.getElementById('morseText');
+  const bigTimeEl = document.getElementById('bigTime');
+
+  const MORSE_DIGIT = {
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+  };
+
+  const UNIT = 170; // ms, base morse timing unit
+  const DOT = UNIT;
+  const DASH = UNIT * 3;
+  const INTRA_GAP = UNIT;      // between dot/dash within one digit
+  const CHAR_GAP = UNIT * 3;   // between digits
+  const GROUP_GAP = UNIT * 7;  // between H / M / S groups
+  const END_GAP = UNIT * 10;   // pause before the pattern loops
+
+  let sequence = [];
+  let cursor = 0;
+  let segmentStart = 0;
+  let lastTimeStr = '';
+
+  function buildSequence(hh, mm, ss){
+    const groups = [hh, mm, ss].map(pair => pair.split('').map(d => MORSE_DIGIT[d]));
+    const seq = [];
+    groups.forEach((group, gi) => {
+      group.forEach((code, ci) => {
+        code.split('').forEach((sym, si) => {
+          seq.push({ on: true, duration: sym === '.' ? DOT : DASH });
+          if (si < code.length - 1) seq.push({ on: false, duration: INTRA_GAP });
+        });
+        if (ci < group.length - 1) seq.push({ on: false, duration: CHAR_GAP });
+      });
+      if (gi < groups.length - 1) seq.push({ on: false, duration: GROUP_GAP });
+    });
+    seq.push({ on: false, duration: END_GAP });
+    return seq;
+  }
+
+  function buildDisplayText(hh, mm, ss){
+    const toGroup = pair => pair.split('').map(d => MORSE_DIGIT[d]).join(' ');
+    return `${toGroup(hh)}   /   ${toGroup(mm)}   /   ${toGroup(ss)}`;
+  }
+
+  function updateTimeIfChanged(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const hh = pad(now.getHours());
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+    const str = hh + mm + ss;
+
+    bigTimeEl.textContent = `${hh}:${mm}:${ss}`;
+
+    if (str !== lastTimeStr){
+      lastTimeStr = str;
+      sequence = buildSequence(hh, mm, ss);
+      morseTextEl.textContent = buildDisplayText(hh, mm, ss);
+      cursor = 0;
+      segmentStart = performance.now();
+    }
+  }
+
+  function animate(now){
+    updateTimeIfChanged();
+
+    if (sequence.length){
+      let elapsed = now - segmentStart;
+      let seg = sequence[cursor];
+      while (elapsed >= seg.duration){
+        elapsed -= seg.duration;
+        cursor = (cursor + 1) % sequence.length;
+        segmentStart = now - elapsed;
+        seg = sequence[cursor];
+      }
+      lamp.classList.toggle('on', seg.on);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>
