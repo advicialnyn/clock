@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Explosive Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px;
+  }
+  canvas{ max-width:92%; max-height:82%; }
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:#5a4d34;
+    text-transform:uppercase;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="ec" width="480" height="600"></canvas>
+  <div id="hint">detonates and reforms, once a second</div>
+</div>
+<script>
+  const canvas = document.getElementById('ec');
+  const ctx = canvas.getContext('2d');
+  const W = 480, H = 600;
+
+  const FONT_SIZE = 130;
+  const FONT = `700 ${FONT_SIZE}px 'Fraunces', serif`;
+
+  const ROWS = [
+    { key: 'H', y: 130, color: '#c9a15c', getText: (h) => String(h).padStart(2, '0'), text: '00', popStart: -Infinity, particles: [] },
+    { key: 'M', y: 320, color: '#ede8de', getText: (h, m) => String(m).padStart(2, '0'), text: '00', popStart: -Infinity, particles: [] },
+    { key: 'S', y: 510, color: '#4c7a73', getText: (h, m, s) => String(s).padStart(2, '0'), text: '00', popStart: -Infinity, particles: [] },
+  ];
+
+  const shockwaves = []; // { y, start, color }
+
+  // offscreen canvas used only to sample which pixels a piece of text occupies
+  const sampleCanvas = document.createElement('canvas');
+  sampleCanvas.width = W;
+  sampleCanvas.height = FONT_SIZE + 40;
+  const sampleCtx = sampleCanvas.getContext('2d');
+
+  function explode(row, tNow){
+    sampleCtx.clearRect(0, 0, sampleCanvas.width, sampleCanvas.height);
+    sampleCtx.font = FONT;
+    sampleCtx.textAlign = 'center';
+    sampleCtx.textBaseline = 'middle';
+    sampleCtx.fillStyle = '#ffffff';
+    const localCenterY = sampleCanvas.height / 2;
+    sampleCtx.fillText(row.text, W / 2, localCenterY);
+
+    const img = sampleCtx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+    const step = 5;
+    const cx = W / 2, cy = localCenterY;
+
+    for (let py = 0; py < sampleCanvas.height; py += step){
+      for (let px = 0; px < sampleCanvas.width; px += step){
+        const idx = (py * sampleCanvas.width + px) * 4;
+        const alpha = img[idx + 3];
+        if (alpha < 120) continue;
+
+        const dx = px - cx, dy = py - cy;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const dirX = dx / dist, dirY = dy / dist;
+        const speed = 1.6 + Math.random() * 3.4;
+
+        row.particles.push({
+          x: px,
+          y: row.y - localCenterY + py,
+          vx: dirX * speed + (Math.random() - 0.5) * 1.2,
+          vy: dirY * speed - 1.0, // slight upward bias so it reads as a burst, not a slump
+          life: 0,
+          maxLife: 480 + Math.random() * 280,
+          size: 1.6 + Math.random() * 2.2,
+        });
+      }
+    }
+
+    shockwaves.push({ y: row.y, start: tNow, color: row.color });
+    row.popStart = tNow;
+  }
+
+  function updateAndDrawParticles(row, dt){
+    ctx.fillStyle = row.color;
+    for (let i = row.particles.length - 1; i >= 0; i--){
+      const p = row.particles[i];
+      p.life += dt;
+      if (p.life >= p.maxLife){ row.particles.splice(i, 1); continue; }
+      p.vy += 0.012 * dt; // gentle gravity
+      p.vx *= 0.985;
+      p.x += p.vx * (dt / 16);
+      p.y += p.vy * (dt / 16);
+      const alpha = 1 - p.life / p.maxLife;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawShockwaves(tNow){
+    for (let i = shockwaves.length - 1; i >= 0; i--){
+      const w = shockwaves[i];
+      const age = tNow - w.start;
+      if (age > 380){ shockwaves.splice(i, 1); continue; }
+      const p = age / 380;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, w.y, 30 + p * 170, 8 + p * 30, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = w.color;
+      ctx.globalAlpha = 0.35 * (1 - p);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawText(row, tNow){
+    const popAge = tNow - row.popStart;
+    const popDur = 260;
+    const popProgress = Math.min(1, Math.max(0, popAge / popDur));
+    // slight overshoot pop-in: scale from 1.35 down to 1
+    const scale = popProgress < 1 ? 1.35 - 0.35 * popProgress : 1;
+    const alpha = popProgress; // fades in as it "reforms"
+
+    ctx.save();
+    ctx.translate(W / 2, row.y);
+    ctx.scale(scale, scale);
+    ctx.font = FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha = Math.max(0.15, alpha);
+    ctx.fillStyle = row.color;
+    ctx.shadowColor = row.color;
+    ctx.shadowBlur = 14;
+    ctx.fillText(row.text, 0, 0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  let lastWholeSecond = -1;
+  let lastFrameTime = performance.now();
+
+  function tick(tNow){
+    const dt = Math.min(48, tNow - lastFrameTime);
+    lastFrameTime = tNow;
+
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const wholeSecond = Math.floor(tNow / 1000);
+
+    if (wholeSecond !== lastWholeSecond){
+      lastWholeSecond = wholeSecond;
+      ROWS.forEach(row => {
+        explode(row, tNow); // blow up whatever is currently showing
+        row.text = row.getText(h, m, s); // then swap in the fresh value underneath
+      });
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    drawShockwaves(tNow);
+    ROWS.forEach(row => {
+      updateAndDrawParticles(row, dt);
+      drawText(row, tNow);
+    });
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
