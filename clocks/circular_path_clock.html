@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circular Path Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --dim:#3a4048;
+    --labeldim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  svg{ width:100%; height:100%; max-width:100%; max-height:100%; overflow:visible; display:block; }
+  .track{ fill:none; stroke:var(--dim); stroke-width:1.5; }
+  .digit{ font-family:'Fraunces', serif; font-weight:600; fill:var(--paper); text-anchor:middle; dominant-baseline:middle; }
+  #tag{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--labeldim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <svg id="svg" viewBox="0 0 400 600">
+    <g id="tracks"></g>
+    <rect id="box" fill="var(--face)" stroke="var(--rim)" stroke-width="2"/>
+    <g id="digits"></g>
+    <text id="colon1" class="digit" fill="var(--rim)" font-size="26">:</text>
+    <text id="colon2" class="digit" fill="var(--rim)" font-size="26">:</text>
+  </svg>
+  <div id="tag">rolling upward, always</div>
+</div>
+<script>
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const tracksG = document.getElementById('tracks');
+  const digitsG = document.getElementById('digits');
+  const box = document.getElementById('box');
+  const colon1 = document.getElementById('colon1');
+  const colon2 = document.getElementById('colon2');
+
+  const VW = 400, VH = 600;
+  const CENTER = { x: -650, y: VH / 2 }; // shared center, off-screen to the left
+  const LANE_X = [25, 95, 165, 235, 305, 375]; // where each lane crosses the vertical middle
+  const ARC_LEN_PER_DIGIT = 50; // desired on-screen px of arc per digit step
+  const EDGE_MARGIN = 350; // how far past center-y the visible track extends (in px)
+
+  const lanes = LANE_X.map(x => {
+    const r = x - CENTER.x;
+    const anglePerDigit = ARC_LEN_PER_DIGIT / r;
+    const thetaEdge = Math.asin(Math.min(0.98, EDGE_MARGIN / r));
+    return { x, r, anglePerDigit, thetaEdge, texts: [] };
+  });
+
+  function pointAt(r, theta){
+    return { x: CENTER.x + r * Math.cos(theta), y: CENTER.y + r * Math.sin(theta) };
+  }
+
+  // draw the visible guide track for each lane, a true circular arc
+  lanes.forEach(lane => {
+    const p1 = pointAt(lane.r, -lane.thetaEdge);
+    const p2 = pointAt(lane.r, lane.thetaEdge);
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('class', 'track');
+    path.setAttribute('d', `M ${p1.x} ${p1.y} A ${lane.r} ${lane.r} 0 0 1 ${p2.x} ${p2.y}`);
+    tracksG.appendChild(path);
+
+    const g = document.createElementNS(svgNS, 'g');
+    digitsG.appendChild(g);
+    for (let v = -12; v < 24; v++){
+      const txt = document.createElementNS(svgNS, 'text');
+      txt.setAttribute('class', 'digit');
+      txt.setAttribute('font-size', '30');
+      txt.textContent = String(((v % 10) + 10) % 10);
+      g.appendChild(txt);
+      lane.texts.push({ el: txt, v });
+    }
+  });
+
+  // box + colons sit exactly at CENTER.y, since every lane crosses the middle there
+  const midY = CENTER.y;
+  box.setAttribute('x', LANE_X[0] - 30);
+  box.setAttribute('y', midY - 30);
+  box.setAttribute('width', LANE_X[5] - LANE_X[0] + 60);
+  box.setAttribute('height', 60);
+  colon1.setAttribute('x', (LANE_X[1] + LANE_X[2]) / 2);
+  colon1.setAttribute('y', midY);
+  colon2.setAttribute('x', (LANE_X[3] + LANE_X[4]) / 2);
+  colon2.setAttribute('y', midY);
+
+  function updateLane(lane, continuousVal){
+    lane.texts.forEach(({ el, v }) => {
+      const theta = (v - continuousVal) * lane.anglePerDigit;
+      const p = pointAt(lane.r, theta);
+
+      // direction of upward travel along the arc, used to tilt the glyph naturally
+      const motion = { x: Math.sin(theta), y: -Math.cos(theta) };
+      const motionDeg = Math.atan2(motion.y, motion.x) * 180 / Math.PI;
+      const rotate = motionDeg + 90;
+
+      el.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${rotate})`);
+
+      const edge = 1 - Math.abs(theta) / (lane.thetaEdge * 1.15);
+      el.setAttribute('opacity', Math.max(0, Math.min(1, edge * 3)));
+    });
+  }
+
+  function frame(){
+    const now = new Date();
+    const h24 = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds() + now.getMilliseconds() / 1000;
+
+    const mFrac = m + s / 60;
+    const hFrac = h24 + mFrac / 60;
+
+    updateLane(lanes[0], hFrac / 10);
+    updateLane(lanes[1], hFrac % 10);
+    updateLane(lanes[2], mFrac / 10);
+    updateLane(lanes[3], mFrac % 10);
+    updateLane(lanes[4], s / 10);
+    updateLane(lanes[5], s % 10);
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+</script>
+</body>
+</html>
