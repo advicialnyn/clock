@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Braille Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px;
+  }
+  .panel{ display:flex; flex-direction:column; gap:18px; }
+  .grow{ display:flex; align-items:center; gap:18px; }
+  .glabel{
+    width:14px;
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .cells{ display:flex; gap:18px; }
+  .cell{
+    display:grid;
+    grid-template-columns:repeat(2, 10px);
+    grid-template-rows:repeat(3, 10px);
+    gap:6px;
+  }
+  .dot{
+    width:10px; height:10px;
+    border-radius:50%;
+    border:1.5px solid var(--rim);
+    box-sizing:border-box;
+    background:transparent;
+  }
+  .dot.lit{ background:var(--rim); }
+  .grow.minute .dot{ border-color:var(--paper); }
+  .grow.minute .dot.lit{ background:var(--paper); }
+  .grow.second .dot{ border-color:var(--teal); }
+  .grow.second .dot.lit{ background:var(--teal); }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel">
+    <div class="grow hour">
+      <div class="glabel">H</div>
+      <div class="cells" id="hourCells"></div>
+    </div>
+    <div class="grow minute">
+      <div class="glabel">M</div>
+      <div class="cells" id="minuteCells"></div>
+    </div>
+    <div class="grow second">
+      <div class="glabel">S</div>
+      <div class="cells" id="secondCells"></div>
+    </div>
+  </div>
+  <div id="tag">six dots, ten digits</div>
+</div>
+<script>
+  // braille numerals reuse the letter-a-through-j cell patterns,
+  // dots numbered 1,2,3 down the left column and 4,5,6 down the right
+  const BRAILLE = {
+    '1': [1],
+    '2': [1,2],
+    '3': [1,4],
+    '4': [1,4,5],
+    '5': [1,5],
+    '6': [1,2,4],
+    '7': [1,2,4,5],
+    '8': [1,2,5],
+    '9': [2,4],
+    '0': [2,4,5],
+  };
+  // reading order for a row-major 2-col x 3-row grid
+  const GRID_ORDER = [1,4,2,5,3,6];
+
+  function buildCell(){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    GRID_ORDER.forEach(n => {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.dataset.n = n;
+      cell.appendChild(dot);
+    });
+    return cell;
+  }
+
+  function buildGroup(containerId){
+    const container = document.getElementById(containerId);
+    const tens = buildCell();
+    const ones = buildCell();
+    container.appendChild(tens);
+    container.appendChild(ones);
+    return { tens, ones };
+  }
+
+  const hourCells = buildGroup('hourCells');
+  const minuteCells = buildGroup('minuteCells');
+  const secondCells = buildGroup('secondCells');
+
+  function setCell(cell, char){
+    const active = BRAILLE[char] || [];
+    [...cell.children].forEach(dot => {
+      dot.classList.toggle('lit', active.includes(Number(dot.dataset.n)));
+    });
+  }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = String(h).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+
+    setCell(hourCells.tens, hh[0]);
+    setCell(hourCells.ones, hh[1]);
+    setCell(minuteCells.tens, mm[0]);
+    setCell(minuteCells.ones, mm[1]);
+    setCell(secondCells.tens, ss[0]);
+    setCell(secondCells.ones, ss[1]);
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
