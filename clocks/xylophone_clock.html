@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xylophone Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px;
+  }
+  #stage{
+    position:relative;
+    width:min(88vw, 480px);
+    height:clamp(120px, 30vh, 220px);
+  }
+  #mallet{
+    position:absolute;
+    top:0;
+    width:14px; height:14px;
+    margin-left:-7px;
+    border-radius:50%;
+    background:var(--paper);
+  }
+  #bars{
+    position:absolute;
+    left:0; right:0; bottom:0; top:26px;
+    display:flex;
+    align-items:flex-end;
+    gap:6px;
+  }
+  .bar{
+    flex:1;
+    border-radius:4px 4px 2px 2px;
+    transform-origin:bottom center;
+  }
+  .bar.home{
+    outline:2px solid var(--rim);
+    outline-offset:-2px;
+  }
+  #readout{
+    font-size:14px;
+    color:var(--paper);
+    letter-spacing:0.05em;
+  }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="mallet"></div>
+    <div id="bars"></div>
+  </div>
+  <div id="readout">00:00:00</div>
+  <div id="tag">one sweep per hour</div>
+</div>
+<script>
+  const BAR_COUNT = 12;
+  const bars = [];
+  const barsContainer = document.getElementById('bars');
+  const mallet = document.getElementById('mallet');
+  const readout = document.getElementById('readout');
+
+  function hexToRgb(hex){
+    const v = parseInt(hex.slice(1), 16);
+    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+  }
+  function lerpColor(hexA, hexB, t){
+    const a = hexToRgb(hexA), b = hexToRgb(hexB);
+    const r = Math.round(a.r + (b.r - a.r) * t);
+    const g = Math.round(a.g + (b.g - a.g) * t);
+    const bl = Math.round(a.b + (b.b - a.b) * t);
+    return `rgb(${r},${g},${bl})`;
+  }
+
+  const BRASS = '#e0b975';
+  const TEAL = '#6fa89f';
+  const PAPER = '#f5f2ea';
+
+  const HEIGHT_MAX = 100, HEIGHT_MIN = 55;
+
+  for (let i = 0; i < BAR_COUNT; i++){
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const heightPct = HEIGHT_MAX - i * (HEIGHT_MAX - HEIGHT_MIN) / (BAR_COUNT - 1);
+    bar.style.height = heightPct + '%';
+    const baseColor = lerpColor(BRASS, TEAL, i / (BAR_COUNT - 1));
+    barsContainer.appendChild(bar);
+    bars.push({ el: bar, baseColor });
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  const STRIKE_THRESHOLD = 0.85; // how many "bar widths" away the effect still reaches
+
+  function frame(){
+    const now = new Date();
+    const h24 = now.getHours();
+    const h12 = h24 % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+
+    // one continuous sweep across all 12 bars per hour
+    const malletPos = ((m + s / 60) / 60) * BAR_COUNT;
+    
+    const stageWidth = document.getElementById('stage').clientWidth;
+    mallet.style.left = (malletPos / BAR_COUNT * stageWidth) + 'px';
+
+    let nearestDist = Infinity;
+
+    bars.forEach((bar, i) => {
+      const centerPos = i + 0.5;
+      const dist = Math.abs(malletPos - centerPos);
+      nearestDist = Math.min(nearestDist, dist);
+      const impact = Math.max(0, 1 - dist / STRIKE_THRESHOLD);
+
+      bar.el.style.background = lerpColor(bar.baseColor, PAPER, impact * 0.85);
+      bar.el.style.transform = `scaleY(${1 - impact * 0.12})`;
+      bar.el.classList.toggle('home', i === h12);
+    });
+
+    const malletImpact = Math.max(0, 1 - nearestDist / STRIKE_THRESHOLD);
+    mallet.style.top = (malletImpact * 10) + 'px';
+
+    readout.textContent = `${pad(h24)}:${pad(m)}:${pad(s)}`;
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+</script>
+</body>
+</html>
