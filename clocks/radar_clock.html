@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:100%; max-height:100%; }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#8a795a;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="clock" width="600" height="600"></canvas>
+  <div id="label">sweeping, always sweeping</div>
+</div>
+<script>
+  const canvas = document.getElementById('clock');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 600;
+  const CX = SIZE / 2, CY = SIZE / 2;
+  const R = 240;
+
+  const COL = {
+    face: '#161922',
+    rim: '#e0b975',
+    paper: '#f5f2ea',
+    teal: '#6fa89f',
+    dim: '#3a4048',
+  };
+
+  function drawDial(){
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.fillStyle = COL.face;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COL.rim;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(CX, CY);
+    for (let i = 0; i < 12; i++){
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const major = i % 3 === 0;
+      const inner = R - (major ? 24 : 16);
+      ctx.beginPath();
+      ctx.moveTo(inner * Math.cos(a), inner * Math.sin(a));
+      ctx.lineTo((R - 6) * Math.cos(a), (R - 6) * Math.sin(a));
+      ctx.strokeStyle = major ? COL.rim : COL.dim;
+      ctx.lineWidth = major ? 2.5 : 1.2;
+      ctx.stroke();
+    }
+    // faint concentric range rings, radar-style
+    for (let rr = R / 3; rr < R; rr += R / 3){
+      ctx.beginPath();
+      ctx.arc(0, 0, rr, 0, Math.PI * 2);
+      ctx.strokeStyle = COL.dim;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawSweep(angle){
+    const trailDeg = 55 * Math.PI / 180;
+    const steps = 26;
+    ctx.save();
+    ctx.translate(CX, CY);
+    for (let i = 0; i < steps; i++){
+      const t = i / steps;
+      const a0 = angle - trailDeg * (1 - t);
+      const a1 = angle - trailDeg * (1 - (i + 1) / steps);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R - 8, a0, a1);
+      ctx.closePath();
+      ctx.fillStyle = COL.teal;
+      ctx.globalAlpha = 0.28 * t;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // bright leading edge of the sweep
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo((R - 8) * Math.cos(angle), (R - 8) * Math.sin(angle));
+    ctx.strokeStyle = COL.paper;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function angleDiff(a, b){
+    let d = Math.abs(a - b) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    return d;
+  }
+
+  function drawBlip(angle, radius, color, sweepAngle){
+    const x = radius * Math.cos(angle);
+    const y = radius * Math.sin(angle);
+    const detected = angleDiff(angle, sweepAngle) < 0.18;
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.beginPath();
+    ctx.arc(x, y, detected ? 9 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = detected ? 1 : 0.55;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function tick(){
+    const now = new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+
+    // sweep completes one full revolution per minute
+    const sweepAngle = ((s + ms / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+    const hourAngle = ((h + m / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+    const minuteAngle = (m / 60) * Math.PI * 2 - Math.PI / 2;
+
+    drawDial();
+    drawSweep(sweepAngle);
+    drawBlip(hourAngle, R * 0.42, COL.rim, sweepAngle);
+    drawBlip(minuteAngle, R * 0.72, COL.paper, sweepAngle);
+
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fillStyle = COL.rim;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = COL.paper;
+    ctx.font = '600 22px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const displayH = h === 0 ? 12 : h;
+    ctx.fillText(`${pad(displayH)}:${pad(m)}:${pad(s)}`, CX, CY + R * 0.5);
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
