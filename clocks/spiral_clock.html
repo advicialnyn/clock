@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spiral Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:100%; max-height:100%; }
+  #center{
+    position:absolute;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    pointer-events:none;
+  }
+  #centerTime{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(20px, 4.4vw, 28px);
+    color:#ede8de;
+  }
+  #centerCap{
+    font-size:9px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+  }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="clock" width="600" height="600"></canvas>
+  <div id="center">
+    <div id="centerTime">00:00</div>
+    <div id="centerCap">midnight</div>
+  </div>
+  <div id="label">one full day, one continuous path</div>
+</div>
+<script>
+  const canvas = document.getElementById('clock');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 600;
+  const CX = SIZE / 2, CY = SIZE / 2;
+  const centerTimeEl = document.getElementById('centerTime');
+  const centerCapEl = document.getElementById('centerCap');
+
+  const COL = {
+    rim: '#c9a15c',
+    rimDim: '#5a4d34',
+    paper: '#ede8de',
+    teal: '#4c7a73',
+    guide: 'rgba(237,232,222,0.14)',
+  };
+
+  const MIN_R = 34;
+  const MAX_R = 268;
+  const REVOLUTIONS = 4; // 24h spread over 4 turns = 6h per turn
+  const START_ANGLE = -Math.PI / 2;
+
+  function pointAtFraction(t){
+    const angle = START_ANGLE + t * REVOLUTIONS * Math.PI * 2;
+    const radius = MIN_R + t * (MAX_R - MIN_R);
+    return {
+      x: CX + radius * Math.cos(angle),
+      y: CY + radius * Math.sin(angle),
+      angle,
+      radius,
+    };
+  }
+
+  function drawSpiralPath(){
+    ctx.beginPath();
+    const steps = 800;
+    for (let i = 0; i <= steps; i++){
+      const t = i / steps;
+      const p = pointAtFraction(t);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = COL.guide;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function drawHourTicks(){
+    for (let h = 0; h < 24; h++){
+      const t = h / 24;
+      const p = pointAtFraction(t);
+      const isMajor = h % 3 === 0;
+
+      // small perpendicular tick across the spiral line
+      const perpAngle = p.angle + Math.PI / 2;
+      const len = isMajor ? 10 : 6;
+      ctx.beginPath();
+      ctx.moveTo(p.x - len * Math.cos(perpAngle), p.y - len * Math.sin(perpAngle));
+      ctx.lineTo(p.x + len * Math.cos(perpAngle), p.y + len * Math.sin(perpAngle));
+      ctx.strokeStyle = isMajor ? COL.rim : COL.rimDim;
+      ctx.lineWidth = isMajor ? 2.5 : 1.5;
+      ctx.stroke();
+
+      if (isMajor){
+        const labelR = p.radius + 20;
+        const lx = CX + labelR * Math.cos(p.angle);
+        const ly = CY + labelR * Math.sin(p.angle);
+        ctx.font = "500 13px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = COL.rim;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(h).padStart(2, '0'), lx, ly);
+      }
+    }
+  }
+
+  function drawMarker(t){
+    const p = pointAtFraction(t);
+
+    // glow
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 20);
+    g.addColorStop(0, 'rgba(76,122,115,0.55)');
+    g.addColorStop(1, 'rgba(76,122,115,0)');
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // the traveled portion of the path, brighter
+    ctx.beginPath();
+    const steps = Math.max(2, Math.floor(t * 800));
+    for (let i = 0; i <= steps; i++){
+      const tt = (i / 800);
+      const pp = pointAtFraction(tt);
+      if (i === 0) ctx.moveTo(pp.x, pp.y);
+      else ctx.lineTo(pp.x, pp.y);
+    }
+    ctx.strokeStyle = COL.teal;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = COL.paper;
+    ctx.fill();
+    ctx.strokeStyle = COL.teal;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function partOfDay(h){
+    if (h < 5) return 'night';
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    if (h < 21) return 'evening';
+    return 'night';
+  }
+
+  function tick(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const t = (h * 3600 + m * 60 + s) / 86400;
+
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    drawSpiralPath();
+    drawHourTicks();
+    drawMarker(t);
+
+    const pad = n => String(n).padStart(2, '0');
+    centerTimeEl.textContent = `${pad(h)}:${pad(m)}`;
+    centerCapEl.textContent = partOfDay(h);
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
