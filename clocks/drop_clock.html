@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drop Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  .stage{
+    display:flex; align-items:center;
+    gap:clamp(6px, 1.6vw, 12px);
+  }
+  .group{ display:flex; gap:4px; }
+  .colon{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(24px, 6vw, 44px);
+    color:var(--rim);
+    padding:0 2px;
+  }
+  .card{
+    position:relative;
+    width:clamp(38px, 9vw, 64px);
+    height:clamp(54px, 13vw, 88px);
+    overflow:hidden;
+    background:var(--face);
+    border:1px solid var(--rim);
+  }
+  .num{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(24px, 6vw, 44px);
+    color:var(--paper);
+    transform:translateY(0%);
+  }
+  .num.next{ transform:translateY(-100%); }
+  .num.animating{
+    transition:transform 0.45s cubic-bezier(.55,.06,.68,.19);
+  }
+  @keyframes squash{
+    0%{ transform:scaleY(1); }
+    40%{ transform:scaleY(0.8); }
+    100%{ transform:scaleY(1); }
+  }
+  .num.impact{ animation:squash 0.16s ease-out; }
+  #tag{
+    position:absolute;
+    bottom:4%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="stage" id="stage"></div>
+  <div id="tag">falls into place, every second</div>
+</div>
+<script>
+  const stage = document.getElementById('stage');
+
+  function makeCard(id){
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = id;
+    const cur = document.createElement('div');
+    cur.className = 'num cur';
+    cur.textContent = '0';
+    card.appendChild(cur);
+    return card;
+  }
+
+  function makeGroup(prefix){
+    const g = document.createElement('div');
+    g.className = 'group';
+    g.appendChild(makeCard(prefix + '0'));
+    g.appendChild(makeCard(prefix + '1'));
+    return g;
+  }
+
+  stage.appendChild(makeGroup('h'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('m'));
+  stage.appendChild(Object.assign(document.createElement('div'), { className: 'colon', textContent: ':' }));
+  stage.appendChild(makeGroup('s'));
+
+  function drop(cardId, digit){
+    const card = document.getElementById(cardId);
+    const cur = card.querySelector('.cur');
+    if (cur.textContent === digit) return;
+
+    // the incoming digit starts stacked directly above the visible cell
+    const next = document.createElement('div');
+    next.className = 'num next';
+    next.textContent = digit;
+    card.appendChild(next);
+
+    // force layout so the starting position is committed before animating
+    void card.offsetWidth;
+
+    cur.classList.add('animating');
+    next.classList.add('animating');
+    // current digit falls out the bottom, incoming digit drops into place
+    cur.style.transform = 'translateY(100%)';
+    next.style.transform = 'translateY(0%)';
+
+    next.addEventListener('transitionend', function onEnd(){
+      next.removeEventListener('transitionend', onEnd);
+      cur.textContent = digit;
+      cur.classList.remove('animating');
+      cur.style.transform = 'translateY(0%)';
+      cur.classList.add('impact');
+      setTimeout(() => cur.classList.remove('impact'), 180);
+      next.remove();
+    });
+  }
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h);
+    const mm = pad(now.getMinutes());
+    const ss = pad(now.getSeconds());
+
+    drop('h0', hh[0]);
+    drop('h1', hh[1]);
+    drop('m0', mm[0]);
+    drop('m1', mm[1]);
+    drop('s0', ss[0]);
+    drop('s1', ss[1]);
+  }
+
+  (function initial(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = pad(h), mm = pad(now.getMinutes()), ss = pad(now.getSeconds());
+    const map = { h0:hh[0], h1:hh[1], m0:mm[0], m1:mm[1], s0:ss[0], s1:ss[1] };
+    Object.entries(map).forEach(([id, val]) => {
+      document.getElementById(id).querySelector('.cur').textContent = val;
+    });
+  })();
+
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
