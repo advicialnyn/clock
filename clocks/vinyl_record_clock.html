@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vinyl Record Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:100%; max-height:100%; }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="clock" width="600" height="600"></canvas>
+  <div id="label">arm glides inward as the minute plays out</div>
+</div>
+<script>
+  const canvas = document.getElementById('clock');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 600;
+  const CX = 290, CY = 300;
+  const R = 220;
+
+  const COL = {
+    vinyl: '#14151b',
+    vinylEdge: '#1d202a',
+    groove: 'rgba(237,232,222,0.05)',
+    grooveBright: 'rgba(237,232,222,0.10)',
+    rim: '#c9a15c',
+    rimDim: '#5a4d34',
+    paper: '#ede8de',
+    teal: '#4c7a73',
+  };
+
+  const PIVOT = { x: 540, y: 62 };
+  const OUTER_POINT = { x: CX + R * 0.75, y: CY - R * 0.6 };
+  const INNER_POINT = { x: CX + 32, y: CY - 8 };
+
+  function drawDisc(spinAngle){
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(spinAngle);
+
+    // outer edge
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    const g = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R);
+    g.addColorStop(0, COL.vinylEdge);
+    g.addColorStop(1, COL.vinyl);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = COL.rimDim;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // grooves
+    for (let r = 46; r < R - 6; r += 5){
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.strokeStyle = (r % 25 < 5) ? COL.grooveBright : COL.groove;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // label
+    ctx.beginPath();
+    ctx.arc(0, 0, 44, 0, Math.PI * 2);
+    ctx.fillStyle = '#1f2330';
+    ctx.fill();
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = COL.rimDim;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawLabelText(hh, mm){
+    ctx.font = "600 15px 'Fraunces', serif";
+    ctx.fillStyle = COL.paper;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${hh}:${mm}`, CX, CY);
+  }
+
+  function drawTonearm(minuteFraction){
+    const nx = OUTER_POINT.x + (INNER_POINT.x - OUTER_POINT.x) * minuteFraction;
+    const ny = OUTER_POINT.y + (INNER_POINT.y - OUTER_POINT.y) * minuteFraction;
+
+    // base / pivot mount
+    ctx.beginPath();
+    ctx.arc(PIVOT.x, PIVOT.y, 13, 0, Math.PI * 2);
+    ctx.fillStyle = COL.rim;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(PIVOT.x, PIVOT.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = COL.vinyl;
+    ctx.fill();
+
+    // arm
+    ctx.beginPath();
+    ctx.moveTo(PIVOT.x, PIVOT.y);
+    ctx.lineTo(nx, ny);
+    ctx.strokeStyle = COL.paper;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // headshell / cartridge
+    const angle = Math.atan2(ny - PIVOT.y, nx - PIVOT.x);
+    ctx.save();
+    ctx.translate(nx, ny);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(-4, -9);
+    ctx.lineTo(16, -5);
+    ctx.lineTo(16, 5);
+    ctx.lineTo(-4, 9);
+    ctx.closePath();
+    ctx.fillStyle = COL.teal;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function tick(now){
+    const date = new Date();
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const s = date.getSeconds();
+    const withinMinute = s / 60; // 0..1 progress through the current minute, drives the arm sweep
+
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // continuous decorative spin, independent of real time
+    const spinAngle = (now / 1800) * Math.PI * 2;
+
+    drawDisc(spinAngle);
+    drawLabelText(String(h).padStart(2,'0'), String(m).padStart(2,'0'));
+    drawTonearm(withinMinute);
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
