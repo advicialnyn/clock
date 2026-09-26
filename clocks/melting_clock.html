@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Melting Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  canvas{ max-width:92%; max-height:78%; }
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:#5a4d34;
+    text-transform:uppercase;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="mc" width="620" height="360"></canvas>
+  <div id="hint">melts through the minute, reforms at :00</div>
+</div>
+<script>
+  const canvas = document.getElementById('mc');
+  const ctx = canvas.getContext('2d');
+  const W = 620, H = 360;
+
+  const FONT_SIZE = 66;
+  const FONT = `700 ${FONT_SIZE}px 'Fraunces', serif`;
+  const TEXT_COLOR = '#e6c383';
+  const MAX_DROOP = 100;   // how far the lowest-melting columns sag downward at full melt
+  const DRIP_EXTRA = 46;   // extra strand length beyond the sagged glyph, at drip peaks
+  const COLUMN_STEP = 2;
+
+  // offscreen canvas holds one crisp render of the current text; we re-warp
+  // it every frame rather than re-rendering the text every frame
+  const glyphCanvas = document.createElement('canvas');
+  glyphCanvas.width = W;
+  glyphCanvas.height = 160;
+  const glyphCtx = glyphCanvas.getContext('2d');
+
+  let lastText = '';
+
+  function renderGlyph(text){
+    glyphCtx.clearRect(0, 0, glyphCanvas.width, glyphCanvas.height);
+    glyphCtx.font = FONT;
+    glyphCtx.textAlign = 'center';
+    glyphCtx.textBaseline = 'middle';
+    glyphCtx.fillStyle = TEXT_COLOR;
+    glyphCtx.fillText(text, glyphCanvas.width / 2, glyphCanvas.height / 2);
+  }
+
+  // smooth pseudo-noise so the droop looks organic rather than a uniform slide
+  function droopNoise(x){
+    const n = 0.5 + 0.5 * Math.sin(x * 0.045) + 0.3 * Math.sin(x * 0.11 + 1.7) + 0.2 * Math.sin(x * 0.021 + 4.1);
+    return Math.max(0, Math.min(1, n / 1.6));
+  }
+
+  // find columns that are local peaks in droopNoise -- those become visible drip strands
+  const dripColumns = [];
+  for (let x = 6; x < W - 6; x += 4){
+    const v = droopNoise(x);
+    if (v > droopNoise(x - 4) && v > droopNoise(x + 4) && v > 0.72){
+      dripColumns.push({ x, strength: v });
+    }
+  }
+
+  const glyphTopOnMain = (H - glyphCanvas.height) / 2 - 20;
+
+  function drawMelted(meltAmount){
+    ctx.clearRect(0, 0, W, H);
+
+    for (let x = 0; x < W; x += COLUMN_STEP){
+      const yOffset = meltAmount * MAX_DROOP * droopNoise(x);
+      ctx.drawImage(
+        glyphCanvas,
+        x, 0, COLUMN_STEP, glyphCanvas.height,
+        x, glyphTopOnMain + yOffset, COLUMN_STEP, glyphCanvas.height
+      );
+    }
+
+    // drip strands + droplets at the strongest droop peaks
+    dripColumns.forEach(d => {
+      if (meltAmount < 0.08) return;
+      const baseY = glyphTopOnMain + glyphCanvas.height * 0.72 + meltAmount * MAX_DROOP * d.strength;
+      const dripLen = meltAmount * DRIP_EXTRA * d.strength;
+      if (dripLen < 2) return;
+
+      const grad = ctx.createLinearGradient(d.x, baseY, d.x, baseY + dripLen);
+      grad.addColorStop(0, TEXT_COLOR);
+      grad.addColorStop(1, 'rgba(230,195,131,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(d.x, baseY);
+      ctx.lineTo(d.x, baseY + dripLen);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(d.x, baseY + dripLen, 2.6 + meltAmount * 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function tick(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const text = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const textNoSeconds = text; // seconds included in the melt display itself
+
+    if (text !== lastText){
+      // only the glyph pixels change when the string changes; melt amount is separate
+      renderGlyph(text);
+      lastText = text;
+    }
+
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+    const meltAmount = (s + ms / 1000) / 60; // 0 right after :00, ~1 just before the minute rolls
+
+    drawMelted(meltAmount);
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
