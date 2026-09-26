@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendulum Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ max-width:88%; max-height:88%; }
+  #label{
+    position:absolute;
+    bottom:2%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#5a4d34;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="pc" width="420" height="620"></canvas>
+  <div id="label">swings once every two seconds</div>
+</div>
+<script>
+  const canvas = document.getElementById('pc');
+  const ctx = canvas.getContext('2d');
+  const W = 420, H = 620;
+
+  const COL = {
+    case: '#161922',
+    caseEdge: '#1f2330',
+    rim: '#c9a15c',
+    rimDim: '#5a4d34',
+    glass: 'rgba(237,232,222,0.04)',
+    paper: '#ede8de',
+    teal: '#4c7a73',
+  };
+
+  const caseTop = 30, caseBottom = H - 30;
+  const caseHalfW = 130;
+  const pivotX = W / 2, pivotY = 210;
+  const rodLength = 320;
+  const maxSwingDeg = 11;
+
+  function drawCase(){
+    ctx.clearRect(0, 0, W, H);
+
+    // outer case silhouette: arched top, tapered body
+    ctx.beginPath();
+    ctx.moveTo(pivotX - caseHalfW, caseTop + 60);
+    ctx.quadraticCurveTo(pivotX - caseHalfW, caseTop, pivotX, caseTop);
+    ctx.quadraticCurveTo(pivotX + caseHalfW, caseTop, pivotX + caseHalfW, caseTop + 60);
+    ctx.lineTo(pivotX + caseHalfW, caseBottom);
+    ctx.lineTo(pivotX - caseHalfW, caseBottom);
+    ctx.closePath();
+    ctx.fillStyle = COL.case;
+    ctx.fill();
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // inner glass panel where the pendulum swings, inset from the case edge
+    const glassTop = 250, glassBottom = caseBottom - 26, glassHalfW = caseHalfW - 26;
+    ctx.beginPath();
+    ctx.rect(pivotX - glassHalfW, glassTop, glassHalfW * 2, glassBottom - glassTop);
+    ctx.fillStyle = COL.glass;
+    ctx.fill();
+    ctx.strokeStyle = COL.rimDim;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // time window near the top
+    ctx.beginPath();
+    ctx.roundRect(pivotX - 90, caseTop + 30, 180, 70, 14);
+    ctx.fillStyle = COL.caseEdge;
+    ctx.fill();
+    ctx.strokeStyle = COL.rim;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  function drawPendulum(angleRad){
+    const bobX = pivotX + Math.sin(angleRad) * rodLength;
+    const bobY = pivotY + Math.cos(angleRad) * rodLength;
+
+    // pivot mount
+    ctx.beginPath();
+    ctx.arc(pivotX, pivotY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = COL.rim;
+    ctx.fill();
+
+    // rod
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(bobX, bobY);
+    ctx.strokeStyle = COL.paper;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // bob
+    ctx.beginPath();
+    ctx.arc(bobX, bobY, 26, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(bobX - 8, bobY - 8, 4, bobX, bobY, 28);
+    grad.addColorStop(0, '#e6c383');
+    grad.addColorStop(1, COL.rim);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = COL.rimDim;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // faint tick mark on the bob's face, purely decorative
+    ctx.beginPath();
+    ctx.arc(bobX, bobY, 10, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(22,25,34,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function drawTimeText(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const str = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    ctx.font = "600 30px 'Fraunces', serif";
+    ctx.fillStyle = COL.paper;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(str, pivotX, caseTop + 65);
+  }
+
+  function tick(now){
+    // continuous, smooth swing: full left-right-left cycle every 2 seconds
+    const swing = Math.sin((now / 1000) * Math.PI);
+    const angleRad = (swing * maxSwingDeg) * (Math.PI / 180);
+
+    drawCase();
+    drawTimeText();
+    drawPendulum(angleRad);
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
