@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morse Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px;
+  }
+  .panel{ display:flex; flex-direction:column; gap:16px; }
+  .grow{ display:flex; align-items:center; gap:16px; }
+  .glabel{
+    width:14px;
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .digits{ display:flex; gap:20px; }
+  .digit{ display:flex; gap:5px; align-items:center; }
+  .sym{ background:var(--rim); }
+  .sym.dot{ width:9px; height:9px; border-radius:50%; }
+  .sym.dash{ width:24px; height:9px; border-radius:4px; }
+  .grow.minute .sym{ background:var(--paper); }
+  .grow.second .sym{ background:var(--teal); }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel">
+    <div class="grow hour">
+      <div class="glabel">H</div>
+      <div class="digits" id="hourDigits"></div>
+    </div>
+    <div class="grow minute">
+      <div class="glabel">M</div>
+      <div class="digits" id="minuteDigits"></div>
+    </div>
+    <div class="grow second">
+      <div class="glabel">S</div>
+      <div class="digits" id="secondDigits"></div>
+    </div>
+  </div>
+  <div id="tag">dots and dashes, not digits</div>
+</div>
+<script>
+  const MORSE = {
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+    '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+  };
+
+  function buildDigit(){
+    const d = document.createElement('div');
+    d.className = 'digit';
+    return d;
+  }
+
+  function buildGroup(containerId){
+    const container = document.getElementById(containerId);
+    const tens = buildDigit();
+    const ones = buildDigit();
+    container.appendChild(tens);
+    container.appendChild(ones);
+    return { tens, ones };
+  }
+
+  const hourDigits = buildGroup('hourDigits');
+  const minuteDigits = buildGroup('minuteDigits');
+  const secondDigits = buildGroup('secondDigits');
+
+  function renderDigit(el, char){
+    const code = MORSE[char] || '';
+    el.innerHTML = '';
+    [...code].forEach(sym => {
+      const s = document.createElement('div');
+      s.className = 'sym ' + (sym === '.' ? 'dot' : 'dash');
+      el.appendChild(s);
+    });
+  }
+
+  function render(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const hh = String(h).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+
+    renderDigit(hourDigits.tens, hh[0]);
+    renderDigit(hourDigits.ones, hh[1]);
+    renderDigit(minuteDigits.tens, mm[0]);
+    renderDigit(minuteDigits.ones, mm[1]);
+    renderDigit(secondDigits.tens, ss[0]);
+    renderDigit(secondDigits.ones, ss[1]);
+  }
+
+  render();
+  setInterval(render, 1000);
+</script>
+</body>
+</html>
