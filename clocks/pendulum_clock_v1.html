@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendulum Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#161922;
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --teal:#6fa89f;
+    --dim:#8a795a;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .case{
+    width:min(46vw, 220px);
+    height:min(84vh, 480px);
+    border:2px solid var(--rim);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:22px 0 16px;
+  }
+  #readout{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:clamp(16px, 3.4vw, 22px);
+    color:var(--paper);
+    letter-spacing:0.02em;
+  }
+  #readout .sep{ color:var(--rim); }
+
+  .chamber{
+    flex:1;
+    width:100%;
+    position:relative;
+    margin-top:18px;
+    border-top:1px solid var(--rim);
+  }
+  .pivot{
+    position:absolute;
+    top:0; left:50%;
+    width:8px; height:8px;
+    margin-left:-4px; margin-top:-4px;
+    border-radius:50%;
+    background:var(--rim);
+    z-index:2;
+  }
+  .rod{
+    position:absolute;
+    top:0; left:50%;
+    width:2px;
+    height:78%;
+    margin-left:-1px;
+    background:var(--dim);
+    transform-origin:top center;
+    animation:swing 2s ease-in-out infinite alternate;
+  }
+  .bob{
+    position:absolute;
+    bottom:-14px; left:50%;
+    width:28px; height:28px;
+    margin-left:-14px;
+    border-radius:50%;
+    background:var(--teal);
+  }
+  @keyframes swing{
+    from{ transform:rotate(-16deg); }
+    to{ transform:rotate(16deg); }
+  }
+
+  #tag{
+    position:absolute;
+    bottom:3%;
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="case">
+    <div id="readout">00<span class="sep">:</span>00<span class="sep">:</span>00</div>
+    <div class="chamber">
+      <div class="pivot"></div>
+      <div class="rod"><div class="bob"></div></div>
+    </div>
+  </div>
+  <div id="tag">counts by swinging, not sweeping</div>
+</div>
+<script>
+  const readout = document.getElementById('readout');
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function tick(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    if (h === 0) h = 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    readout.innerHTML = `${pad(h)}<span class="sep">:</span>${pad(m)}<span class="sep">:</span>${pad(s)}`;
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
