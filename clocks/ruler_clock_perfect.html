@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruler Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --rim:#e0b975;
+    --paper:#f5f2ea;
+    --dim:#8a795a;
+    --minor:#3a4048;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px;
+  }
+  .panel{ width:min(84vw, 460px); display:flex; flex-direction:column; gap:26px; }
+  .row{ display:flex; align-items:center; gap:12px; }
+  .glabel{
+    width:14px;
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--dim);
+  }
+  .rulerWrap{
+    position:relative;
+    flex:1;
+    height:48px;
+    overflow:hidden;
+    border-bottom:1px solid var(--minor);
+  }
+  /* both layers share one anchor point: the ruler's own horizontal center,
+     exactly where the fixed pointer sits. Only a transform ever moves them. */
+  .tickLayer, .labels{
+    position:absolute;
+    left:50%;
+    bottom:0;
+    top:0;
+    will-change:transform;
+  }
+  .tickLayer .tick{
+    position:absolute;
+    bottom:0;
+  }
+  .tickLayer .tick.minor{
+    width:1px;
+    height:34%;
+    background:var(--minor);
+  }
+  .tickLayer .tick.major{
+    width:2px;
+    height:72%;
+    background:var(--rim);
+    margin-left:-0.5px;
+  }
+  .labels{ top:2px; height:16px; bottom:auto; }
+  .labels span{
+    position:absolute; top:0;
+    transform:translateX(-50%);
+    font-size:12px;
+    font-weight:500;
+    color:var(--paper);
+  }
+  .pointer{
+    position:absolute; left:50%; top:0; bottom:0;
+    width:2px;
+    background:var(--rim);
+    transform:translateX(-1px);
+    z-index:2;
+  }
+  .pointer::before{
+    content:'';
+    position:absolute; top:-6px; left:50%;
+    width:0; height:0;
+    border-left:5px solid transparent;
+    border-right:5px solid transparent;
+    border-top:6px solid var(--rim);
+    transform:translateX(-50%);
+  }
+  .value{
+    width:34px;
+    text-align:right;
+    font-size:14px;
+    color:var(--paper);
+  }
+  #tag{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel">
+    <div class="row">
+      <div class="glabel">H</div>
+      <div class="rulerWrap">
+        <div class="tickLayer" id="hourTicks"></div>
+        <div class="labels" id="hourLabels"></div>
+        <div class="pointer"></div>
+      </div>
+      <div class="value" id="hourVal">00</div>
+    </div>
+    <div class="row">
+      <div class="glabel">M</div>
+      <div class="rulerWrap">
+        <div class="tickLayer" id="minuteTicks"></div>
+        <div class="labels" id="minuteLabels"></div>
+        <div class="pointer"></div>
+      </div>
+      <div class="value" id="minuteVal">00</div>
+    </div>
+    <div class="row">
+      <div class="glabel">S</div>
+      <div class="rulerWrap">
+        <div class="tickLayer" id="secondTicks"></div>
+        <div class="labels" id="secondLabels"></div>
+        <div class="pointer"></div>
+      </div>
+      <div class="value" id="secondVal">00</div>
+    </div>
+  </div>
+  <div id="tag">lined up with now</div>
+</div>
+<script>
+  const UNIT_HM_S = 16; // px per minute/second unit
+  const UNIT_H = 50;    // px per hour unit
+
+  const hourTicks = document.getElementById('hourTicks');
+  const minuteTicks = document.getElementById('minuteTicks');
+  const secondTicks = document.getElementById('secondTicks');
+
+  const hourLabels = document.getElementById('hourLabels');
+  const minuteLabels = document.getElementById('minuteLabels');
+  const secondLabels = document.getElementById('secondLabels');
+
+  // build actual tick elements at v*unit, the same way labels are built below —
+  // sharing the exact same coordinate math is what keeps them lined up.
+  function addTick(container, v, unit, cls){
+    const tick = document.createElement('div');
+    tick.className = 'tick ' + cls;
+    tick.style.left = (v * unit) + 'px';
+    container.appendChild(tick);
+  }
+
+  // hour ruler: every position is a major tick (small range, no minors needed)
+  for (let v = -12; v < 12 * 2; v++){
+    addTick(hourTicks, v, UNIT_H, 'major');
+  }
+
+  // minute/second rulers: a tall major tick every 5 units, short minor ticks between
+  function buildHMSTicks(container){
+    for (let v = -60; v < 60 * 2; v++){
+      const mod5 = ((v % 5) + 5) % 5;
+      addTick(container, v, UNIT_HM_S, mod5 === 0 ? 'major' : 'minor');
+    }
+  }
+  buildHMSTicks(minuteTicks);
+  buildHMSTicks(secondTicks);
+
+  // build a repeated set of number labels (three cycles: before, current, after)
+  // so the scroll always has coverage near the visible window, however it's offset
+  function buildLabels(container, unit, range, step, formatFn){
+    for (let v = -range; v < range * 2; v += step){
+      const span = document.createElement('span');
+      span.style.left = (v * unit) + 'px';
+      span.textContent = formatFn(v, range);
+      container.appendChild(span);
+    }
+  }
+
+  buildLabels(hourLabels, UNIT_H, 12, 1, v => {
+    const h = ((v % 12) + 12) % 12;
+    return h === 0 ? '12' : String(h);
+  });
+  buildLabels(minuteLabels, UNIT_HM_S, 60, 5, v => {
+    const m = ((v % 60) + 60) % 60;
+    return String(m).padStart(2, '0');
+  });
+  buildLabels(secondLabels, UNIT_HM_S, 60, 5, v => {
+    const s = ((v % 60) + 60) % 60;
+    return String(s).padStart(2, '0');
+  });
+
+  const hourVal = document.getElementById('hourVal');
+  const minuteVal = document.getElementById('minuteVal');
+  const secondVal = document.getElementById('secondVal');
+
+  function pad(n){ return String(n).padStart(2, '0'); }
+
+  function frame(){
+    const now = new Date();
+    let h = now.getHours() % 12;
+    const displayHour = h === 0 ? 12 : h;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+
+    const hourCont = (h + m / 60) % 12;
+    const minuteCont = (m + s / 60) % 60;
+    const secondCont = (s + ms / 1000) % 60;
+
+    // ticks and labels both get the exact same transform, from the same
+    // center-anchored origin, so a tick and its number can never drift apart
+    hourTicks.style.transform = `translateX(${-hourCont * UNIT_H}px)`;
+    hourLabels.style.transform = `translateX(${-hourCont * UNIT_H}px)`;
+
+    minuteTicks.style.transform = `translateX(${-minuteCont * UNIT_HM_S}px)`;
+    minuteLabels.style.transform = `translateX(${-minuteCont * UNIT_HM_S}px)`;
+
+    secondTicks.style.transform = `translateX(${-secondCont * UNIT_HM_S}px)`;
+    secondLabels.style.transform = `translateX(${-secondCont * UNIT_HM_S}px)`;
+
+    hourVal.textContent = pad(displayHour);
+    minuteVal.textContent = pad(m);
+    secondVal.textContent = pad(s);
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+</script>
+</body>
+</html>
