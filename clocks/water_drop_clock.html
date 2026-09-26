@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Water Drop Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0d1420;
+    --ink-2:#122132;
+    --glass-rim:#7fb8c9;
+    --water-deep:#1c5b66;
+    --water-mid:#2f8a92;
+    --water-surface:#7fd9d1;
+    --brass:#c9a15c;
+    --brassDim:#5a4d34;
+    --paper:#ede8de;
+  }
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  canvas{ max-width:80%; max-height:78%; }
+  #readout{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+  }
+  #time{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(22px, 5vw, 30px);
+    color:var(--paper);
+  }
+  #caption{
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--brassDim);
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="wc" width="360" height="560"></canvas>
+  <div id="readout">
+    <div id="time">00:00:00</div>
+    <div id="caption">one drop a second, fills within the hour</div>
+  </div>
+</div>
+<script>
+  const canvas = document.getElementById('wc');
+  const ctx = canvas.getContext('2d');
+  const W = 360, H = 560;
+
+  const SPOUT = { x: W / 2, y: 46 };
+  const GLASS = { left: 108, right: 252, top: 180, bottom: 508, radius: 16 };
+
+  const ripples = [];
+  const bubbles = [];
+  for (let i = 0; i < 7; i++){
+    bubbles.push({
+      x: GLASS.left + 14 + Math.random() * (GLASS.right - GLASS.left - 28),
+      speed: 14 + Math.random() * 18,
+      offset: Math.random() * 1000,
+      size: 1.5 + Math.random() * 2,
+    });
+  }
+
+  let lastSecond = -1;
+
+  function glassPath(waterTop){
+    ctx.beginPath();
+    ctx.moveTo(GLASS.left, GLASS.top);
+    ctx.lineTo(GLASS.left, GLASS.bottom - GLASS.radius);
+    ctx.quadraticCurveTo(GLASS.left, GLASS.bottom, GLASS.left + GLASS.radius, GLASS.bottom);
+    ctx.lineTo(GLASS.right - GLASS.radius, GLASS.bottom);
+    ctx.quadraticCurveTo(GLASS.right, GLASS.bottom, GLASS.right, GLASS.bottom - GLASS.radius);
+    ctx.lineTo(GLASS.right, GLASS.top);
+  }
+
+  function drawSpout(){
+    // wall bracket + pipe
+    ctx.fillStyle = '#1a2434';
+    ctx.fillRect(SPOUT.x - 30, 14, 60, 14);
+    ctx.strokeStyle = var_brass();
+    ctx.lineWidth = 2;
+    ctx.strokeRect(SPOUT.x - 30, 14, 60, 14);
+
+    ctx.beginPath();
+    ctx.moveTo(SPOUT.x, 28);
+    ctx.lineTo(SPOUT.x, 40);
+    ctx.strokeStyle = var_brass();
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // nozzle
+    ctx.beginPath();
+    ctx.moveTo(SPOUT.x - 6, 40);
+    ctx.lineTo(SPOUT.x + 6, 40);
+    ctx.lineTo(SPOUT.x + 3, 48);
+    ctx.lineTo(SPOUT.x - 3, 48);
+    ctx.closePath();
+    ctx.fillStyle = var_brass();
+    ctx.fill();
+  }
+
+  function var_brass(){ return '#c9a15c'; }
+
+  function drawGlass(waterSurfaceY){
+    // glass outline
+    glassPath(waterSurfaceY);
+    ctx.strokeStyle = 'rgba(127,184,201,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // faint glass tint
+    ctx.save();
+    glassPath();
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(127,184,201,0.03)';
+    ctx.fill();
+    ctx.restore();
+
+    // graduation marks every 5 minutes, labels every 15
+    const innerH = GLASS.bottom - GLASS.top - 6;
+    for (let mMark = 0; mMark <= 60; mMark += 5){
+      const y = GLASS.bottom - 3 - (mMark / 60) * innerH;
+      const isMajor = mMark % 15 === 0;
+      ctx.beginPath();
+      ctx.moveTo(GLASS.left, y);
+      ctx.lineTo(GLASS.left + (isMajor ? 14 : 8), y);
+      ctx.strokeStyle = isMajor ? 'rgba(201,161,92,0.7)' : 'rgba(127,184,201,0.35)';
+      ctx.lineWidth = isMajor ? 2 : 1;
+      ctx.stroke();
+
+      if (isMajor){
+        ctx.font = "500 10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = 'rgba(201,161,92,0.8)';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(mMark), GLASS.left - 6, y);
+      }
+    }
+  }
+
+  function drawWater(elapsedFraction, tNow){
+    const innerH = GLASS.bottom - GLASS.top - 6;
+    const level = elapsedFraction * innerH;
+    const surfaceY = GLASS.bottom - 3 - level;
+    const waveAmp = 2.2;
+
+    ctx.save();
+    glassPath();
+    ctx.closePath();
+    ctx.clip();
+
+    // subtle wavy surface using a sine ripple across the top edge
+    ctx.beginPath();
+    ctx.moveTo(GLASS.left, GLASS.bottom + 4);
+    ctx.lineTo(GLASS.left, surfaceY);
+    for (let px = GLASS.left; px <= GLASS.right; px += 6){
+      const wy = surfaceY + Math.sin((px / 18) + tNow / 260) * waveAmp;
+      ctx.lineTo(px, wy);
+    }
+    ctx.lineTo(GLASS.right, GLASS.bottom + 4);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0, surfaceY, 0, GLASS.bottom);
+    grad.addColorStop(0, '#2f8a92');
+    grad.addColorStop(1, '#1c5b66');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // surface highlight line
+    ctx.beginPath();
+    for (let px = GLASS.left; px <= GLASS.right; px += 6){
+      const wy = surfaceY + Math.sin((px / 18) + tNow / 260) * waveAmp;
+      px === GLASS.left ? ctx.moveTo(px, wy) : ctx.lineTo(px, wy);
+    }
+    ctx.strokeStyle = 'rgba(127,217,209,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // rising bubbles
+    bubbles.forEach(b => {
+      if (surfaceY >= GLASS.bottom - 4) return; // no bubbles if basically empty
+      const cyclePos = ((tNow / 1000) * b.speed / 60 + b.offset) % 1;
+      const by = GLASS.bottom - cyclePos * (GLASS.bottom - surfaceY - 6);
+      if (by < surfaceY) return;
+      ctx.beginPath();
+      ctx.arc(b.x, by, b.size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(237,232,222,0.25)';
+      ctx.fill();
+    });
+
+    ctx.restore();
+
+    return surfaceY;
+  }
+
+  function drawDrop(surfaceY, tNow){
+    const cycle = (tNow % 1000) / 1000;
+    if (cycle > 0.94) return; // brief pause between drops
+    const ease = cycle * cycle;
+    const y = 48 + ease * (surfaceY - 48);
+    const stretch = 1 + ease * 1.4;
+
+    ctx.beginPath();
+    ctx.ellipse(SPOUT.x, y, 3.2, 5 * stretch * 0.5 + 3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#7fd9d1';
+    ctx.fill();
+  }
+
+  function updateRipples(surfaceY, tNow){
+    if (Math.floor(tNow / 1000) !== lastSecond){
+      lastSecond = Math.floor(tNow / 1000);
+      ripples.push({ start: tNow, y: surfaceY });
+    }
+    for (let i = ripples.length - 1; i >= 0; i--){
+      const r = ripples[i];
+      const age = tNow - r.start;
+      if (age > 420){ ripples.splice(i, 1); continue; }
+      const p = age / 420;
+      const rw = 6 + p * 30;
+      ctx.beginPath();
+      ctx.ellipse(SPOUT.x, r.y, rw, rw * 0.28, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(127,217,209,${0.5 * (1 - p)})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  function tick(tNow){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const elapsedFraction = (m * 60 + s) / 3600;
+
+    ctx.clearRect(0, 0, W, H);
+    drawSpout();
+    const surfaceY = drawWater(elapsedFraction, tNow);
+    drawGlass(surfaceY);
+    updateRipples(surfaceY, tNow);
+    drawDrop(surfaceY, tNow);
+
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('time').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
