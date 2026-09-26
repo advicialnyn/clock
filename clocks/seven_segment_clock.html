@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seven Segment Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html,body{
+    margin:0; height:100%;
+    background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  #wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    padding:20px;
+  }
+  #panel{
+    background:#161922;
+    border:2px solid #c9a15c;
+    border-radius:10px;
+    padding:24px 30px;
+  }
+  canvas{ display:block; max-width:100%; }
+  #hint{
+    font-size:10px;
+    letter-spacing:0.16em;
+    color:#5a4d34;
+    text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="panel"><canvas id="seg" width="560" height="180"></canvas></div>
+  <div id="hint">HH &middot; MM &middot; SS, seven strokes per digit</div>
+</div>
+<script>
+  const canvas = document.getElementById('seg');
+  const ctx = canvas.getContext('2d');
+
+  const COL = {
+    onLight: '#ede8de',
+    onSeconds: '#4c7a73',
+    off: 'rgba(237,232,222,0.06)',
+    colon: '#c9a15c',
+  };
+
+  // which segments (a,b,c,d,e,f,g) are lit for each digit
+  const DIGIT_SEGMENTS = {
+    '0': ['a','b','c','d','e','f'],
+    '1': ['b','c'],
+    '2': ['a','b','g','e','d'],
+    '3': ['a','b','g','c','d'],
+    '4': ['f','g','b','c'],
+    '5': ['a','f','g','c','d'],
+    '6': ['a','f','g','e','c','d'],
+    '7': ['a','b','c'],
+    '8': ['a','b','c','d','e','f','g'],
+    '9': ['a','b','c','d','f','g'],
+  };
+
+  const DIGIT_W = 46;
+  const DIGIT_H = 88;
+  const THICKNESS = 11;
+
+  function drawDigit(x, y, char, onColor){
+    const lit = DIGIT_SEGMENTS[char] || [];
+    const segPoints = {
+      a: [x + THICKNESS*0.5, y,               x + DIGIT_W - THICKNESS*0.5, y],
+      g: [x + THICKNESS*0.5, y + DIGIT_H/2,    x + DIGIT_W - THICKNESS*0.5, y + DIGIT_H/2],
+      d: [x + THICKNESS*0.5, y + DIGIT_H,      x + DIGIT_W - THICKNESS*0.5, y + DIGIT_H],
+      f: [x, y + THICKNESS*0.5,                x, y + DIGIT_H/2 - THICKNESS*0.35],
+      b: [x + DIGIT_W, y + THICKNESS*0.5,      x + DIGIT_W, y + DIGIT_H/2 - THICKNESS*0.35],
+      e: [x, y + DIGIT_H/2 + THICKNESS*0.35,   x, y + DIGIT_H - THICKNESS*0.5],
+      c: [x + DIGIT_W, y + DIGIT_H/2 + THICKNESS*0.35, x + DIGIT_W, y + DIGIT_H - THICKNESS*0.5],
+    };
+
+    ctx.lineWidth = THICKNESS;
+    ctx.lineCap = 'round';
+
+    Object.keys(segPoints).forEach(key => {
+      const [x1, y1, x2, y2] = segPoints[key];
+      const isOn = lit.includes(key);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      if (isOn){
+        ctx.strokeStyle = onColor;
+        ctx.shadowColor = onColor;
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.strokeStyle = COL.off;
+        ctx.shadowBlur = 0;
+      }
+      ctx.stroke();
+    });
+    ctx.shadowBlur = 0;
+  }
+
+  function drawColon(x, y, color){
+    [y + DIGIT_H * 0.32, y + DIGIT_H * 0.68].forEach(dotY => {
+      ctx.beginPath();
+      ctx.arc(x, dotY, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    });
+  }
+
+  function render(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const h = pad(now.getHours());
+    const m = pad(now.getMinutes());
+    const s = pad(now.getSeconds());
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const gap = 14;
+    const colonGap = 26;
+    const totalWidth = 6 * DIGIT_W + 3 * gap + 2 * colonGap; // 6 digits, 3 internal digit-gaps, 2 colon gaps
+    let x = (canvas.width - totalWidth) / 2;
+    const y = (canvas.height - DIGIT_H) / 2;
+
+    h.split('').forEach(ch => { drawDigit(x, y, ch, COL.onLight); x += DIGIT_W + gap; });
+    x += colonGap - gap;
+    drawColon(x - colonGap / 2, y, COL.colon);
+
+    m.split('').forEach(ch => { drawDigit(x, y, ch, COL.onLight); x += DIGIT_W + gap; });
+    x += colonGap - gap;
+    drawColon(x - colonGap / 2, y, COL.colon);
+
+    s.split('').forEach(ch => { drawDigit(x, y, ch, COL.onSeconds); x += DIGIT_W + gap; });
+
+    requestAnimationFrame(render);
+  }
+
+  render();
+</script>
+</body>
+</html>
